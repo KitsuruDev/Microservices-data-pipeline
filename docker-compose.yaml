@@ -185,7 +185,9 @@ services:
       start_period: 60s
 
   postgresql:
-    image: postgres:15-alpine
+    build:
+      context: .
+      dockerfile: dockerfile.postgresql
     container_name: postgresql-server
     restart: unless-stopped
     ports:
@@ -241,6 +243,7 @@ services:
               "database.user": "admin",
               "database.password": "admin123",
               "database.dbname": "testdb",
+              "database.server.name": "dbserver",
               "topic.prefix": "dbserver",
               "plugin.name": "wal2json",
               "slot.name": "debezium",

@@ -447,10 +447,9 @@ def create_tables():
             FOR VALUES FROM ('{week_start.isoformat()}') TO ('{week_end.isoformat()}')
         """)
 
-    # создание слота репликации, если не существует
-    cur.execute("SELECT slot_name FROM pg_replication_slots WHERE slot_name = 'debezium'")
-    if cur.fetchone() is None:
-        cur.execute("SELECT pg_create_logical_replication_slot('debezium', 'wal2json')")
+    # создание слота репликации
+    cur.execute("SELECT pg_drop_replication_slot('debezium');")
+    cur.execute("SELECT pg_create_logical_replication_slot('debezium', 'wal2json')")
     
     # создание публикации, если не существует
     cur.execute("SELECT pubname FROM pg_publication WHERE pubname = 'pub'")
