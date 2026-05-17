@@ -22,15 +22,14 @@ services:
     networks:
       - data-network
 
-  # -------------------- Kafka Connect с Debezium (producer) --------------------
+  # -------------------- Kafka Connect - Debezium (producer) --------------------
   # Читает изменения из PostgreSQL и отправляет их в определённый топик Kafka-брокер
   kafka-connect:
-    image: debezium/connect:2.5.0.Final
+    image: debezium/connect:1.8
     depends_on:
       - kafka
     environment:
       BOOTSTRAP_SERVERS: kafka:9092
-      REST_PORT: 8083
       GROUP_ID: connect-cluster
       CONFIG_STORAGE_TOPIC: connect-configs
       OFFSET_STORAGE_TOPIC: connect-offsets
@@ -41,6 +40,9 @@ services:
       CONFIG_STORAGE_REPLICATION_FACTOR: 1
       OFFSET_STORAGE_REPLICATION_FACTOR: 1
       STATUS_STORAGE_REPLICATION_FACTOR: 1
+      PLUGIN_NAME: wal2json
+    volumes:
+      - ./sinks/jars:/kafka/connect/sink-plugins
     ports:
       - "8083:8083"
     networks:
@@ -81,7 +83,7 @@ services:
     networks:
       - data-network
   
-  # -------------------- Базы данных c их потребителями (sink) --------------------
+  # -------------------- Базы данных --------------------
   redis:
     image: redis:7-alpine
     container_name: redis-server
@@ -99,20 +101,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  redis-sink:
-    build: ./sinks/redis-sink
-    container_name: redis-sink
-    depends_on:
-      - kafka
-      - redis
-    environment:
-      KAFKA_BROKER: kafka:9092
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      PYTHONUNBUFFERED: 1
-    networks:
-      - data-network
 
   mongodb:
     image: mongo:6
@@ -135,25 +123,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 60s
-
-  mongodb-sink:
-    build: ./sinks/mongodb-sink
-    container_name: mongodb-sink
-    depends_on:
-      kafka:
-        condition: service_started
-      mongodb:
-        condition: service_healthy
-    environment:
-      KAFKA_BROKER: kafka:9092
-      MONGO_HOST: mongodb
-      MONGO_PORT: 27017
-      MONGO_USER: admin
-      MONGO_PASSWORD: admin123
-      MONGO_DB: testdb
-      PYTHONUNBUFFERED: 1
-    networks:
-      - data-network
 
   neo4j:
     image: neo4j:5-community
@@ -180,23 +149,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 60s
-
-  neo4j-sink:
-    build: ./sinks/neo4j-sink
-    container_name: neo4j-sink
-    depends_on:
-      kafka:
-        condition: service_started
-      neo4j:
-        condition: service_healthy
-    environment:
-      KAFKA_BROKER: kafka:9092
-      NEO4J_URI: bolt://neo4j:7687
-      NEO4J_USER: neo4j
-      NEO4J_PASSWORD: password123
-      PYTHONUNBUFFERED: 1
-    networks:
-      - data-network
 
   elasticsearch:
     image: elasticsearch:8.11.1
@@ -232,25 +184,6 @@ services:
       retries: 10
       start_period: 60s
 
-  elasticsearch-sink:
-    build: ./sinks/elasticsearch-sink
-    container_name: elasticsearch-sink
-    depends_on:
-      kafka:
-        condition: service_started
-      elasticsearch:
-        condition: service_healthy
-    environment:
-      KAFKA_BROKER: kafka:9092
-      ES_HOST: elasticsearch
-      ES_PORT: 9200
-      ES_USER: elastic
-      ES_PASSWORD: elastic_pass123
-      ES_INDEX: materials
-      PYTHONUNBUFFERED: 1
-    networks:
-      - data-network
-
   postgresql:
     image: postgres:15-alpine
     container_name: postgresql-server
@@ -275,7 +208,7 @@ services:
       timeout: 5s
       retries: 10
 
-  # -------------------- Debezium Setup (однократный запуск) --------------------
+  # -------------------- Инициализация коннекторов вспомогательных БД --------------------
   connect-setup:
     image: curlimages/curl:latest
     depends_on:
@@ -283,14 +216,19 @@ services:
         condition: service_started
       postgresql:
         condition: service_healthy
+      data-generator:
+        condition: service_completed_successfully
+    volumes:
+      - ./sinks/configs:/configs:ro
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        echo "Waiting for Kafka Connect REST API at kafka-connect:8083/connectors..."
+        echo "Waiting for Kafka Connect REST API..."
         while ! curl -s -o /dev/null -w "%{http_code}" http://kafka-connect:8083/connectors | grep -q 200; do
           sleep 2
         done
-        echo "REST API is ready. Registering Debezium PostgreSQL connector..."
+
+        echo "Registering Debezium PostgreSQL connector..."
         curl -X POST http://kafka-connect:8083/connectors \
           -H "Content-Type: application/json" \
           -d '{
@@ -304,13 +242,34 @@ services:
               "database.password": "admin123",
               "database.dbname": "testdb",
               "topic.prefix": "dbserver",
-              "plugin.name": "pgoutput",
+              "plugin.name": "wal2json",
               "slot.name": "debezium",
               "publication.name": "pub",
               "table.include.list": "public.*",
               "snapshot.mode": "initial"
             }
           }'
+
+        echo "Registering Redis Sink Connector..."
+        curl -X POST http://kafka-connect:8083/connectors \
+          -H "Content-Type: application/json" \
+          -d @/configs/redis-sink-config.json
+
+        echo "Registering Elasticsearch Sink Connector..."
+        curl -X POST http://kafka-connect:8083/connectors \
+          -H "Content-Type: application/json" \
+          -d @/configs/elasticsearch-sink-config.json
+
+        echo "Registering Neo4j Sink Connector..."
+        curl -X POST http://kafka-connect:8083/connectors \
+          -H "Content-Type: application/json" \
+          -d @/configs/neo4j-sink-config.json
+
+        echo "Registering MongoDB Sink Connector..."
+        curl -X POST http://kafka-connect:8083/connectors \
+          -H "Content-Type: application/json" \
+          -d @/configs/mongodb-sink-config.json
+
         echo "Setup complete."
     networks:
       - data-network
@@ -318,12 +277,12 @@ services:
   # -------------------- Генератор сертификатов --------------------
   # запускается один раз, генерирует сертификаты, вырубается, после чего сертификаты используются в других контейнерах
   cert-generator:
-    image: alpine:latest
+    image: ubuntu:22.04
     container_name: cert-generator
     volumes:
       - certs_data:/certs
       - ./scripts/generate-all-certs.sh:/generate-all-certs.sh:ro
-    command: sh -c "apk add --no-cache openssl && sh /generate-all-certs.sh"
+    command: bash -c "apt-get update && apt-get install -y openssl && sh /generate-all-certs.sh"
     networks:
       - data-network
 

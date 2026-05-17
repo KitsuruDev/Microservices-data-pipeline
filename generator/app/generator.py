@@ -457,6 +457,21 @@ def create_tables():
     if cur.fetchone() is None:
         cur.execute("CREATE PUBLICATION pub FOR ALL TABLES")
 
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS lecture_material_full (
+            id UUID PRIMARY KEY,
+            lecture_id UUID,
+            title VARCHAR(500),
+            content_text TEXT,
+            content_type VARCHAR(50),
+            file_url VARCHAR(1000),
+            metadata JSONB,
+            course_id UUID,
+            course_name VARCHAR(500),
+            specialty_name VARCHAR(500)
+        )
+    """)
+
     cur.close()
     conn.close()
 
@@ -525,6 +540,37 @@ def fill_tables(data):
         """INSERT INTO attendance (id, week_start_date, schedule_id, student_id, marked_at, marked_by, note, created_at) VALUES %s""",
         [(str(a['id']), a['week_start_date'], str(a['schedule_id']), str(a['student_id']), a['marked_at'], a['marked_by'], a['note'], now) for a in data['attendance']]
     )
+
+    lectures_dict = {str(l['id']): l for l in data['lectures']}
+    courses_dict = {str(c['id']): c for c in data['lecture_courses']}
+    specialties_dict = {str(s['id']): s for s in data['specialties']}
+    rows = []
+    for material in data['lecture_materials']:
+        lecture = lectures_dict.get(str(material['lecture_id']))
+        if not lecture:
+            continue
+        course = courses_dict.get(str(lecture['course_id']))
+        if not course:
+            continue
+        specialty_name = specialties_dict.get(str(course['specialty_id']), {}).get('name', '')
+        rows.append((
+            str(material['id']),
+            str(material['lecture_id']),
+            material['title'],
+            material['content_text'],
+            material['content_type'],
+            material['file_url'],
+            json.dumps(material['metadata']),
+            str(course['id']),
+            course['name'],
+            specialty_name
+        ))
+
+    execute_values(cur, """
+        INSERT INTO lecture_material_full 
+        (id, lecture_id, title, content_text, content_type, file_url, metadata, course_id, course_name, specialty_name)
+        VALUES %s
+    """, rows)
 
     cur.close()
     conn.close()

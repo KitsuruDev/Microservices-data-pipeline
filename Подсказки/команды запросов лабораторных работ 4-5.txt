@@ -1,8 +1,17 @@
+--------- 0. Собрать CdcHandler для mongodb в файл .jar (если ещё не собран) (ЗАПУСКАТЬ ИЗ КОРНЯ ПРОЕКТА) ---------
+docker run -it --rm -v ${PWD}\sinks\mongodb-handler:/usr/src/mymaven -w /usr/src/mymaven maven:3.8-openjdk-11 mvn clean package
+
+После успешной сборки необходимо переместить jar ко всем jar-ам:
+move -force sinks\mongodb-handler\target\university-cdc-handler-1.0.jar sinks\jars\
+
+
 --------- 1. Пересобрать и запустить всё с нуля ---------
 docker-compose down -v
 docker-compose up -d
 
-Дождиться, когда контейнер data-generator завершится (статус Exited (0))
+Дождаться, когда контейнер data-generator завершит работу:
+
+docker-compose logs data-generator
 
 
 --------- 2. Проверить, что Kafka Connect зарегистрировал коннектор ---------
@@ -17,7 +26,4 @@ docker exec kafka kafka-topics --list --bootstrap-server kafka:9092
 
 
 --------- 4. Также можно проверить логи, что новые записи в Postgres фиксируются и синхронизируются в сторонних БД ---------
-docker-compose logs redis-sink
-docker-compose logs mongodb-sink
-docker-compose logs neo4j-sink
-docker-compose logs elasticsearch-sink
+docker-compose logs КОНТЕЙНЕР ???

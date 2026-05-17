@@ -1,0 +1,16 @@
+{
+  "name": "elasticsearch-sink-connector",
+  "config": {
+    "connector.class": "io.lenses.streamreactor.connect.elastic7.ElasticSinkConnector",
+    "tasks.max": "1",
+    "topics": "dbserver.public.lecture_material_full",
+    "connect.elastic.host": "elasticsearch",
+    "connect.elastic.port": "9200",
+    "connect.elastic.username": "elastic",
+    "connect.elastic.password": "elastic_pass123",
+    "connect.elastic.kcql": "INSERT INTO materials SELECT * FROM dbserver.public.lecture_material_full",
+    "connect.elastic.error.policy": "THROW",
+    "connect.elastic.schema.ignore": "true",
+    "connect.elastic.index.name": "materials"
+  }
+}

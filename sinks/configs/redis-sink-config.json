@@ -1,0 +1,16 @@
+{
+  "name": "redis-sink-connector",
+  "config": {
+    "connector.class": "io.lenses.streamreactor.connect.redis.sink.RedisSinkConnector",
+    "tasks.max": "1",
+    "topics": "dbserver.public.student",
+    "connect.redis.host": "redis",
+    "connect.redis.port": "6379",
+    "connect.redis.kcql": "INSERT INTO student: SELECT * FROM dbserver.public.student PK student_card_number STOREAS HASH",
+    "connect.redis.error.policy": "THROW",
+    "auto.create": "true",
+    "auto.evolve": "true",
+    "value.converter.schemas.enable": "false",
+    "key.converter.schemas.enable": "false"
+  }
+}

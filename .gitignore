@@ -1,9 +1,10 @@
-/venv/*
-/logs/*
-/mongodb/*
-/neo4j/*
-/postgresql/*
-/redis/*
-/elasticsearch/*
+/logs/
+/mongodb/
+/neo4j/
+/postgresql/
+/redis/
+/elasticsearch/
+/sinks/mongodb-handler/target/
+/sinks/jars/
 /scripts/report.txt
 /Подсказки/промт.txt
