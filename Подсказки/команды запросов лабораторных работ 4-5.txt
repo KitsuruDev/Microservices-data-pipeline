@@ -1,17 +1,47 @@
---------- 0. Собрать CdcHandler для mongodb в файл .jar (если ещё не собран) (ЗАПУСКАТЬ ИЗ КОРНЯ ПРОЕКТА) ---------
+Запуск только БД и CDC для отладки:
+docker-compose up -d zookeeper kafka kafka-connect kafka-ui data-generator redis mongodb neo4j elasticsearch postgresql connect-setup
+
+
+Проверка подключённых плагинов:
+curl.exe -s http://localhost:8083/connector-plugins?connectorsOnly=false | python -m json.tool
+
+
+
+
+
+
+--------- 0 - 1. Собрать CdcHandler для mongodb в файл .jar (если ещё не собран) (ЗАПУСКАТЬ ИЗ КОРНЯ ПРОЕКТА) ---------
 docker run -it --rm -v ${PWD}\sinks\mongodb-handler:/usr/src/mymaven -w /usr/src/mymaven maven:3.8-openjdk-11 mvn clean package
 
 После успешной сборки необходимо переместить jar ко всем jar-ам:
-move -force sinks\mongodb-handler\target\university-cdc-handler-1.0.jar sinks\jars\
+move -force sinks\mongodb-handler\target\university-cdc-handler-1.0-jar-with-dependencies.jar sinks\jars\
+
+
+
+
+
+
+--------- 0 - 2. Собрать RedisSmt для redis в файл .jar (если ещё не собран) (ЗАПУСКАТЬ ИЗ КОРНЯ ПРОЕКТА) ---------
+docker run -it --rm -v ${PWD}\sinks\redis-smt:/usr/src/mymaven -w /usr/src/mymaven maven:3.8-openjdk-11 mvn clean package
+
+move -force sinks\redis-smt\target\redis-smt-1.0.jar sinks\jars\
+
+
+
+
 
 
 --------- 1. Пересобрать и запустить всё с нуля ---------
-docker-compose down -v
+docker-compose down -v; Remove-Item -Recurse -Force -ErrorAction SilentlyContinue .\mongodb, .\postgresql, .\redis, .\neo4j, .\elasticsearch
 docker-compose up -d
 
 Дождаться, когда контейнер data-generator завершит работу:
 
 docker-compose logs data-generator
+
+
+
+
 
 
 --------- 2. Проверить, что Kafka Connect зарегистрировал коннектор ---------
@@ -20,10 +50,76 @@ curl.exe http://localhost:8083/connectors/postgres-connector/status
 Первый запуск коннектора выполняет начальный снапшот; дождаться состояния RUNNING
 
 
+
+
+
+
 --------- 3. Проверить топики dbserver.public.* с сообщениями Kafka через Kafka UI или через консоль ---------
 http://localhost:8084
 docker exec kafka kafka-topics --list --bootstrap-server kafka:9092
 
 
---------- 4. Также можно проверить логи, что новые записи в Postgres фиксируются и синхронизируются в сторонних БД ---------
-docker-compose logs КОНТЕЙНЕР ???
+
+
+
+
+--------- 4. Проверить, что все действия с записями в Postgres фиксируются и синхронизируются в сторонних БД ---------
+
+docker-compose exec kafka kafka-consumer-groups --bootstrap-server kafka:9092 --group connect-redis-sink-connector --describe
+
+docker-compose exec kafka kafka-console-consumer --bootstrap-server kafka:9092 --topic dbserver.public.student --partition 0 --offset 1500 --max-messages 1 --property print.offset=true
+
+
+REDIS - CREATE:
+
+docker-compose exec redis redis-cli --raw HGETALL "student:TEST-001"
+
+docker exec -it postgresql-server psql -U admin -d testdb -c "
+INSERT INTO student (id, group_id, first_name, last_name, patronymic, email, phone, student_card_number, enrollment_date, status, created_at, updated_at)
+VALUES ('00000000-0000-0000-0000-000000000001',
+        (SELECT id FROM student_group LIMIT 1),
+        'Test', 'Testov', 'Testovich',
+        'test@test.com', '8-800-555-35-35',
+        'TEST-001', CURRENT_DATE, 'Активный',
+        NOW(), NOW());
+"
+
+docker exec -it postgresql-server psql -U admin -d testdb -c "
+SELECT first_name, last_name, patronymic, email FROM student WHERE student_card_number = 'TEST-001';
+"
+
+docker-compose exec redis redis-cli --raw HGETALL "student:TEST-001"
+
+
+
+REDIS - UPDATE:
+
+docker exec -it postgresql-server psql -U admin -d testdb -c "
+UPDATE student SET email = 'updated@test.com' WHERE student_card_number = 'TEST-001';
+"
+
+docker exec -it postgresql-server psql -U admin -d testdb -c "
+SELECT first_name, last_name, patronymic, email FROM student WHERE student_card_number = 'TEST-001';
+"
+
+docker-compose exec redis redis-cli --raw HGETALL "student:TEST-001"
+
+
+
+REDIS - DELETE:
+
+docker exec -it postgresql-server psql -U admin -d testdb -c "
+DELETE FROM student WHERE student_card_number = 'TEST-001';
+"
+
+docker-compose exec redis redis-cli --raw EXISTS "student:TEST-001"
+
+
+
+
+
+docker-compose exec kafka kafka-consumer-groups --bootstrap-server kafka:9092 --group connect-mongodb-sink-connector --describe
+
+docker exec -it mongodb-server mongosh -u admin -p admin123
+use testdb
+db.universities.find().pretty()

@@ -1,5 +1,5 @@
 --------- 1. Пересобрать и запустить всё с нуля ---------
-docker-compose down -v
+docker-compose down -v; Remove-Item -Recurse -Force -ErrorAction SilentlyContinue .\mongodb, .\postgresql, .\redis, .\neo4j, .\elasticsearch
 docker-compose up -d
 
 --------- 2. Получить пользовательский токен ---------

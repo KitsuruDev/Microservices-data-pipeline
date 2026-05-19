@@ -36,11 +36,14 @@ services:
       STATUS_STORAGE_TOPIC: connect-status
       KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      VALUE_CONVERTER_SCHEMAS_ENABLE: "true"
+      KEY_CONVERTER_SCHEMAS_ENABLE: "true"
       REST_ADVERTISED_HOST_NAME: kafka-connect
       CONFIG_STORAGE_REPLICATION_FACTOR: 1
       OFFSET_STORAGE_REPLICATION_FACTOR: 1
       STATUS_STORAGE_REPLICATION_FACTOR: 1
       PLUGIN_NAME: wal2json
+      CONNECT_PLUGIN_PATH: /kafka/connect,/kafka/connect/sink-plugins
     volumes:
       - ./sinks/jars:/kafka/connect/sink-plugins
     ports:
@@ -107,7 +110,7 @@ services:
     container_name: mongodb-server
     restart: unless-stopped
     ports:
-      - "27017:27017"
+      - "30000:27017"
     volumes:
       - mongodb_data:/data/db
       - mongodb_logs:/var/log/mongodb

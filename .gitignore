@@ -4,7 +4,7 @@
 /postgresql/
 /redis/
 /elasticsearch/
-/sinks/mongodb-handler/target/
+/sinks/*/target/
 /sinks/jars/
 /scripts/report.txt
 /Подсказки/промт.txt
