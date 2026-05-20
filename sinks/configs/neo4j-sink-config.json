@@ -1,15 +1,24 @@
 {
   "name": "neo4j-sink-connector",
   "config": {
-    "connector.class": "streams.kafka.connect.sink.Neo4jSinkConnector",
+    "connector.class": "org.neo4j.connectors.kafka.sink.Neo4jConnector",
     "tasks.max": "1",
     "topics": "dbserver.public.student_group,dbserver.public.student,dbserver.public.lecture,dbserver.public.schedule",
-    "neo4j.server.uri": "bolt://neo4j:7687",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "true",
+    "neo4j.uri": "bolt://neo4j:7687",
     "neo4j.authentication.basic.username": "neo4j",
     "neo4j.authentication.basic.password": "password123",
-    "neo4j.topic.cypher.dbserver.public.student_group": "MERGE (g:StudentGroup {id: event.id}) SET g.name = event.name",
-    "neo4j.topic.cypher.dbserver.public.student": "MERGE (s:Student {id: event.id}) SET s.student_card_number = event.student_card_number WITH s MATCH (g:StudentGroup {id: event.group_id}) MERGE (g)-[:HAS_STUDENT]->(s)",
-    "neo4j.topic.cypher.dbserver.public.lecture": "MERGE (l:Lecture {id: event.id}) SET l.type = event.lecture_type, l.title = event.title",
-    "neo4j.topic.cypher.dbserver.public.schedule": "MERGE (sch:Schedule {id: event.id}) SET sch.date = event.scheduled_date, sch.classroom = event.classroom, sch.time = event.start_time WITH sch MATCH (g:StudentGroup {id: event.group_id}) MATCH (l:Lecture {id: event.lecture_id}) MERGE (g)-[:HAS_SCHEDULE]->(sch) MERGE (sch)-[:PART_OF]->(l)"
+    "transforms": "unwrap",
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.drop.tombstones": "true",
+    "transforms.unwrap.delete.handling.mode": "drop",
+
+    "neo4j.cypher.topic.dbserver.public.student_group": "MERGE (g:StudentGroup {id: event.id}) SET g.name = event.name",
+    "neo4j.cypher.topic.dbserver.public.lecture": "MERGE (l:Lecture {id: event.id}) SET l.type = event.lecture_type, l.title = event.title",
+
+    "neo4j.cypher.topic.dbserver.public.student": "MERGE (s:Student {id: event.id}) SET s.student_card_number = event.student_card_number WITH s, event MATCH (g:StudentGroup {id: event.group_id}) MERGE (g)-[:HAS_STUDENT]->(s)",
+    "neo4j.cypher.topic.dbserver.public.schedule": "MERGE (sch:Schedule {id: event.id}) SET sch.date = event.scheduled_date, sch.classroom = event.classroom, sch.time = event.start_time WITH sch, event MATCH (g:StudentGroup {id: event.group_id}) MATCH (l:Lecture {id: event.lecture_id}) MERGE (g)-[:HAS_SCHEDULE]->(sch) MERGE (sch)-[:PART_OF]->(l)"
   }
 }

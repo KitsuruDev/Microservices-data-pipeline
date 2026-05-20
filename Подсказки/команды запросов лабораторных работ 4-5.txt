@@ -32,7 +32,7 @@ move -force sinks\redis-smt\target\redis-smt-1.0.jar sinks\jars\
 
 
 --------- 1. Пересобрать и запустить всё с нуля ---------
-docker-compose down -v; Remove-Item -Recurse -Force -ErrorAction SilentlyContinue .\mongodb, .\postgresql, .\redis, .\neo4j, .\elasticsearch
+docker-compose down -v; Remove-Item -Recurse -Force -ErrorAction SilentlyContinue .\mongodb
 docker-compose up -d
 
 Дождаться, когда контейнер data-generator завершит работу:
@@ -123,3 +123,15 @@ docker-compose exec kafka kafka-consumer-groups --bootstrap-server kafka:9092 --
 docker exec -it mongodb-server mongosh -u admin -p admin123
 use testdb
 db.universities.find().pretty()
+
+
+
+docker-compose exec kafka kafka-consumer-groups --bootstrap-server kafka:9092 --group connect-neo4j-sink-connector --describe
+
+MATCH (n:Student) RETURN 'Student' AS label, count(n) AS count
+UNION ALL
+MATCH (n:StudentGroup) RETURN 'StudentGroup' AS label, count(n) AS count
+UNION ALL
+MATCH (n:Lecture) RETURN 'Lecture' AS label, count(n) AS count
+UNION ALL
+MATCH (n:Schedule) RETURN 'Schedule' AS label, count(n) AS count;
