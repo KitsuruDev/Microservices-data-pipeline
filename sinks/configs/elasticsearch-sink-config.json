@@ -3,14 +3,28 @@
   "config": {
     "connector.class": "io.lenses.streamreactor.connect.elastic7.ElasticSinkConnector",
     "tasks.max": "1",
-    "topics": "dbserver.public.lecture_material_full",
-    "connect.elastic.host": "elasticsearch",
+    "topics": "dbserver.public.lecture_material,dbserver.public.lecture,dbserver.public.lecture_course,dbserver.public.specialty,dbserver.public.department_specialties,dbserver.public.department,dbserver.public.institute,dbserver.public.university",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "true",
+
+    "transforms": "unwrap,cdc",
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.drop.tombstones": "true",
+    "transforms.unwrap.delete.handling.mode": "rewrite",
+
+    "transforms.cdc.type": "com.example.LectureMaterialCdcHandler",
+
+    "connect.elastic.protocol": "http",
+    "connect.elastic.hosts": "elasticsearch-server",
     "connect.elastic.port": "9200",
-    "connect.elastic.username": "elastic",
-    "connect.elastic.password": "elastic_pass123",
-    "connect.elastic.kcql": "INSERT INTO materials SELECT * FROM dbserver.public.lecture_material_full",
-    "connect.elastic.error.policy": "THROW",
-    "connect.elastic.schema.ignore": "true",
-    "connect.elastic.index.name": "materials"
+    "connect.elastic.cluster.name": "elasticsearch",
+    "connect.elastic.use.http.username": "elastic",
+    "connect.elastic.use.http.password": "elastic_pass123",
+
+    "connect.elastic.kcql": "INSERT INTO lecture_material SELECT * FROM dbserver.public.lecture_material; INSERT INTO lecture_material SELECT * FROM dbserver.public.lecture; INSERT INTO lecture_material SELECT * FROM dbserver.public.lecture_course; INSERT INTO lecture_material SELECT * FROM dbserver.public.specialty; INSERT INTO lecture_material SELECT * FROM dbserver.public.department_specialties; INSERT INTO lecture_material SELECT * FROM dbserver.public.department; INSERT INTO lecture_material SELECT * FROM dbserver.public.institute; INSERT INTO lecture_material SELECT * FROM dbserver.public.university",
+    "connect.elastic.error.policy": "NOOP",
+    "connect.elastic.max.buffered.records": "100",
+    "connect.elastic.flush.timeout.ms": "5000"
   }
 }

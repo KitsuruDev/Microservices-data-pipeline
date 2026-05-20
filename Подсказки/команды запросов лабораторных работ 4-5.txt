@@ -21,10 +21,10 @@ move -force sinks\mongodb-handler\target\university-cdc-handler-1.0-jar-with-dep
 
 
 
---------- 0 - 2. Собрать RedisSmt для redis в файл .jar (если ещё не собран) (ЗАПУСКАТЬ ИЗ КОРНЯ ПРОЕКТА) ---------
-docker run -it --rm -v ${PWD}\sinks\redis-smt:/usr/src/mymaven -w /usr/src/mymaven maven:3.8-openjdk-11 mvn clean package
+--------- 0 - 2. Собрать LectureMaterialCdcHandler для elasticsearch в файл .jar (если ещё не собран) ---------
+docker run -it --rm -v ${PWD}\sinks\elasticsearch-handler:/usr/src/mymaven -w /usr/src/mymaven maven:3.8-openjdk-11 mvn clean package
 
-move -force sinks\redis-smt\target\redis-smt-1.0.jar sinks\jars\
+move -force sinks\elasticsearch-handler\target\elasticsearch-cdc-handler-1.0-jar-with-dependencies.jar sinks\jars\
 
 
 
@@ -32,7 +32,7 @@ move -force sinks\redis-smt\target\redis-smt-1.0.jar sinks\jars\
 
 
 --------- 1. Пересобрать и запустить всё с нуля ---------
-docker-compose down -v; Remove-Item -Recurse -Force -ErrorAction SilentlyContinue .\mongodb
+docker-compose down -v; Remove-Item -Recurse -Force -ErrorAction SilentlyContinue @('.\mongodb', '.\elasticsearch')
 docker-compose up -d
 
 Дождаться, когда контейнер data-generator завершит работу:
@@ -126,6 +126,8 @@ db.universities.find().pretty()
 
 
 
+
+
 docker-compose exec kafka kafka-consumer-groups --bootstrap-server kafka:9092 --group connect-neo4j-sink-connector --describe
 
 MATCH (n:Student) RETURN 'Student' AS label, count(n) AS count
@@ -135,3 +137,13 @@ UNION ALL
 MATCH (n:Lecture) RETURN 'Lecture' AS label, count(n) AS count
 UNION ALL
 MATCH (n:Schedule) RETURN 'Schedule' AS label, count(n) AS count;
+
+
+
+
+
+docker-compose exec kafka kafka-consumer-groups --bootstrap-server kafka:9092 --group connect-elasticsearch-sink-connector --describe
+
+curl.exe -u elastic:elastic_pass123 http://localhost:20000/lecture_material/_count
+
+http://localhost:20000/lecture_material/_search?pretty

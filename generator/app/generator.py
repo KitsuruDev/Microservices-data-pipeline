@@ -456,21 +456,6 @@ def create_tables():
     if cur.fetchone() is None:
         cur.execute("CREATE PUBLICATION pub FOR ALL TABLES")
 
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS lecture_material_full (
-            id UUID PRIMARY KEY,
-            lecture_id UUID,
-            title VARCHAR(500),
-            content_text TEXT,
-            content_type VARCHAR(50),
-            file_url VARCHAR(1000),
-            metadata JSONB,
-            course_id UUID,
-            course_name VARCHAR(500),
-            specialty_name VARCHAR(500)
-        )
-    """)
-
     cur.close()
     conn.close()
 
@@ -564,13 +549,7 @@ def fill_tables(data):
             course['name'],
             specialty_name
         ))
-
-    execute_values(cur, """
-        INSERT INTO lecture_material_full 
-        (id, lecture_id, title, content_text, content_type, file_url, metadata, course_id, course_name, specialty_name)
-        VALUES %s
-    """, rows)
-
+    
     cur.close()
     conn.close()
 
