@@ -32,7 +32,7 @@ move -force sinks\elasticsearch-handler\target\elasticsearch-cdc-handler-1.0-jar
 
 
 --------- 1. Пересобрать и запустить всё с нуля ---------
-docker-compose down -v; Remove-Item -Recurse -Force -ErrorAction SilentlyContinue @('.\mongodb', '.\elasticsearch')
+docker-compose down -v; Remove-Item -Recurse -Force -ErrorAction SilentlyContinue @('.\mongodb', '.\elasticsearch', '.\redis', '.\neo4j')
 docker-compose up -d
 
 Дождаться, когда контейнер data-generator завершит работу:
@@ -68,6 +68,12 @@ docker exec kafka kafka-topics --list --bootstrap-server kafka:9092
 docker-compose exec kafka kafka-consumer-groups --bootstrap-server kafka:9092 --group connect-redis-sink-connector --describe
 
 docker-compose exec kafka kafka-console-consumer --bootstrap-server kafka:9092 --topic dbserver.public.student --partition 0 --offset 1500 --max-messages 1 --property print.offset=true
+
+
+docker exec -it redis-server redis-cli --raw
+DBSIZE
+KEYS *
+GET ""
 
 
 REDIS - CREATE:

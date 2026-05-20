@@ -4,13 +4,11 @@
     "connector.class": "io.lenses.streamreactor.connect.redis.sink.RedisSinkConnector",
     "tasks.max": "1",
     "topics": "dbserver.public.student",
-    "connect.redis.host": "redis",
+    "connect.redis.host": "redis-server",
     "connect.redis.port": "6379",
-    "connect.redis.kcql": "INSERT INTO student: SELECT * FROM dbserver.public.student PK student_card_number STOREAS HASH",
-    "connect.redis.error.policy": "THROW",
-    "auto.create": "true",
-    "auto.evolve": "true",
-    "value.converter.schemas.enable": "false",
-    "key.converter.schemas.enable": "false"
+    "connect.redis.kcql": "SELECT after.id, after.first_name, after.last_name, after.patronymic, after.email, after.phone, after.student_card_number, after.group_id, after.enrollment_date, after.status FROM dbserver.public.student PK after.student_card_number",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "true",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter"
   }
 }
