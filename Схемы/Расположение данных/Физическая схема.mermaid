@@ -27,7 +27,7 @@ graph TB
         style REDIS fill:#FAD7A0,stroke:#3A6EA5,stroke-width:2px
         direction TB
         
-        R_Student["<b>Тип:</b> Hash<br/><b>Ключ:</b> student_card_number<br/><br/>{<br/>id: UUID,<br/>first_name: STRING,<br/>last_name: STRING,<br/>patronymic: STRING,<br/>email: STRING,<br/>phone: STRING,<br/>student_card_number: STRING,<br/>group_id: UUID,<br/>enrollment_date: STRING,<br/>status: STRING<br/>}<br/>"]
+        R_Student["<b>Тип:</b> Hash<br/><b>Ключ:</b> student:student_card_number<br/><br/>{<br/>id: UUID,<br/>first_name: STRING,<br/>last_name: STRING,<br/>patronymic: STRING,<br/>email: STRING,<br/>phone: STRING,<br/>student_card_number: STRING,<br/>group_id: UUID,<br/>enrollment_date: STRING,<br/>status: STRING<br/>}<br/>"]
     end
 
     subgraph ELASTIC["ELASTICSEARCH - Материал"]

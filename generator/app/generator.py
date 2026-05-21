@@ -448,13 +448,17 @@ def create_tables():
         """)
 
     # создание слота репликации
-    cur.execute("SELECT pg_drop_replication_slot('debezium');")
+    cur.execute("""
+        SELECT pg_drop_replication_slot('debezium')
+        WHERE EXISTS (
+            SELECT 1 FROM pg_replication_slots WHERE slot_name = 'debezium'
+        )
+    """)
     cur.execute("SELECT pg_create_logical_replication_slot('debezium', 'wal2json')")
     
-    # создание публикации, если не существует
-    cur.execute("SELECT pubname FROM pg_publication WHERE pubname = 'pub'")
-    if cur.fetchone() is None:
-        cur.execute("CREATE PUBLICATION pub FOR ALL TABLES")
+    # создание публикации
+    cur.execute("DROP PUBLICATION IF EXISTS pub;")
+    cur.execute("CREATE PUBLICATION pub FOR ALL TABLES;")
 
     cur.close()
     conn.close()

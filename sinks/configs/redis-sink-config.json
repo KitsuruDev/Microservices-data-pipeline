@@ -6,9 +6,14 @@
     "topics": "dbserver.public.student",
     "connect.redis.host": "redis-server",
     "connect.redis.port": "6379",
-    "connect.redis.kcql": "SELECT after.id, after.first_name, after.last_name, after.patronymic, after.email, after.phone, after.student_card_number, after.group_id, after.enrollment_date, after.status FROM dbserver.public.student PK after.student_card_number",
+    "connect.redis.kcql": "UPSERT INTO student: SELECT id, first_name, last_name, patronymic, email, phone, student_card_number, group_id, enrollment_date, status FROM dbserver.public.student PK student_card_number",
+    "transforms": "unwrap",
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.drop.tombstones": "false",
+    "transforms.unwrap.delete.handling.mode": "rewrite",
     "value.converter": "org.apache.kafka.connect.json.JsonConverter",
     "value.converter.schemas.enable": "true",
-    "key.converter": "org.apache.kafka.connect.storage.StringConverter"
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "delete.handling.mode": "drop"
   }
 }

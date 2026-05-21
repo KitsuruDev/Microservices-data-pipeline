@@ -78,7 +78,8 @@ GET ""
 
 REDIS - CREATE:
 
-docker-compose exec redis redis-cli --raw HGETALL "student:TEST-001"
+docker exec -it redis-server redis-cli --raw
+GET "student:TEST-001"
 
 docker exec -it postgresql-server psql -U admin -d testdb -c "
 INSERT INTO student (id, group_id, first_name, last_name, patronymic, email, phone, student_card_number, enrollment_date, status, created_at, updated_at)
@@ -94,7 +95,8 @@ docker exec -it postgresql-server psql -U admin -d testdb -c "
 SELECT first_name, last_name, patronymic, email FROM student WHERE student_card_number = 'TEST-001';
 "
 
-docker-compose exec redis redis-cli --raw HGETALL "student:TEST-001"
+docker exec -it redis-server redis-cli --raw
+GET "student:TEST-001"
 
 
 
@@ -108,7 +110,8 @@ docker exec -it postgresql-server psql -U admin -d testdb -c "
 SELECT first_name, last_name, patronymic, email FROM student WHERE student_card_number = 'TEST-001';
 "
 
-docker-compose exec redis redis-cli --raw HGETALL "student:TEST-001"
+docker exec -it redis-server redis-cli --raw
+GET "TEST-001"
 
 
 
@@ -118,7 +121,8 @@ docker exec -it postgresql-server psql -U admin -d testdb -c "
 DELETE FROM student WHERE student_card_number = 'TEST-001';
 "
 
-docker-compose exec redis redis-cli --raw EXISTS "student:TEST-001"
+docker exec -it redis-server redis-cli --raw
+GET "TEST-001"
 
 
 
