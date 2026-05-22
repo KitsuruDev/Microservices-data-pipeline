@@ -1,0 +1,19 @@
+{
+  "name": "postgres-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+    "database.hostname": "postgresql",
+    "database.port": "5432",
+    "database.user": "admin",
+    "database.password": "admin123",
+    "database.dbname": "testdb",
+    "database.server.name": "dbserver",
+    "topic.prefix": "dbserver",
+    "plugin.name": "wal2json",
+    "slot.name": "debezium",
+    "publication.name": "pub",
+    "table.include.list": "public.*",
+    "snapshot.mode": "initial"
+  }
+}

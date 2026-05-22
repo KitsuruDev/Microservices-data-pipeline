@@ -110,7 +110,7 @@ services:
     container_name: mongodb-server
     restart: unless-stopped
     ports:
-      - "30000:27017"
+      - "13000:27017"
     volumes:
       - mongodb_data:/data/db
       - mongodb_logs:/var/log/mongodb
@@ -236,25 +236,7 @@ services:
         echo "Registering Debezium PostgreSQL connector..."
         curl -X POST http://kafka-connect:8083/connectors \
           -H "Content-Type: application/json" \
-          -d '{
-            "name": "postgres-connector",
-            "config": {
-              "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
-              "tasks.max": "1",
-              "database.hostname": "postgresql",
-              "database.port": "5432",
-              "database.user": "admin",
-              "database.password": "admin123",
-              "database.dbname": "testdb",
-              "database.server.name": "dbserver",
-              "topic.prefix": "dbserver",
-              "plugin.name": "wal2json",
-              "slot.name": "debezium",
-              "publication.name": "pub",
-              "table.include.list": "public.*",
-              "snapshot.mode": "initial"
-            }
-          }'
+          -d @/configs/postgresql-sink-config.json
 
         echo "Registering Redis Sink Connector..."
         curl -X POST http://kafka-connect:8083/connectors \
