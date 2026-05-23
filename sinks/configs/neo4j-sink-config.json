@@ -2,23 +2,22 @@
   "name": "neo4j-sink-connector",
   "config": {
     "connector.class": "org.neo4j.connectors.kafka.sink.Neo4jConnector",
-    "tasks.max": "1",
-    "topics": "dbserver.public.student_group,dbserver.public.student,dbserver.public.lecture,dbserver.public.schedule",
-    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
-    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
-    "value.converter.schemas.enable": "true",
-    "neo4j.uri": "bolt://neo4j:7687",
+    "topics": "dbserver.public.student, dbserver.public.student_group, dbserver.public.schedule, dbserver.public.lecture",
+    "neo4j.uri": "bolt://neo4j-server:7687",
     "neo4j.authentication.basic.username": "neo4j",
     "neo4j.authentication.basic.password": "password123",
-    "transforms": "unwrap",
-    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
-    "transforms.unwrap.drop.tombstones": "true",
-    "transforms.unwrap.delete.handling.mode": "drop",
+    "neo4j.strategy": "cypher",
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": false,
+    "value.converter.schemas.enable": false,
 
-    "neo4j.cypher.topic.dbserver.public.student_group": "MERGE (g:StudentGroup {id: event.id}) SET g.name = event.name",
-    "neo4j.cypher.topic.dbserver.public.lecture": "MERGE (l:Lecture {id: event.id}) SET l.type = event.lecture_type, l.title = event.title",
+    "neo4j.cypher.topic.dbserver.public.student_group": "WITH __value.payload.op AS op, __value.payload.after AS after, __value.payload.before AS before FOREACH (_ IN CASE WHEN op IN ['c','u','r'] THEN [1] ELSE [] END | MERGE (g:StudentGroup {id: after.id}) SET g = after ) WITH op, before MATCH (g:StudentGroup {id: before.id}) WHERE op = 'd' DETACH DELETE g",
 
-    "neo4j.cypher.topic.dbserver.public.student": "MERGE (s:Student {id: event.id}) SET s.student_card_number = event.student_card_number WITH s, event MATCH (g:StudentGroup {id: event.group_id}) MERGE (g)-[:HAS_STUDENT]->(s)",
-    "neo4j.cypher.topic.dbserver.public.schedule": "MERGE (sch:Schedule {id: event.id}) SET sch.date = event.scheduled_date, sch.classroom = event.classroom, sch.time = event.start_time WITH sch, event MATCH (g:StudentGroup {id: event.group_id}) MATCH (l:Lecture {id: event.lecture_id}) MERGE (g)-[:HAS_SCHEDULE]->(sch) MERGE (sch)-[:PART_OF]->(l)"
+    "neo4j.cypher.topic.dbserver.public.lecture": "WITH __value.payload.op AS op, __value.payload.after AS after, __value.payload.before AS before FOREACH (_ IN CASE WHEN op IN ['c','u','r'] THEN [1] ELSE [] END | MERGE (l:Lecture {id: after.id}) SET l = after ) WITH op, before MATCH (l:Lecture {id: before.id}) WHERE op = 'd' DETACH DELETE l",
+
+    "neo4j.cypher.topic.dbserver.public.student": "WITH __value.payload.op AS op, __value.payload.after AS after, __value.payload.before AS before FOREACH (_ IN CASE WHEN op IN ['c','u','r'] THEN [1] ELSE [] END | MERGE (s:Student {id: after.id}) SET s = after MERGE (g:StudentGroup {id: after.group_id}) MERGE (g)-[:HAS_STUDENT]->(s) ) WITH op, after, before OPTIONAL MATCH (old_group:StudentGroup)-[old_rel:HAS_STUDENT]->(s:Student {id: after.id}) WHERE op = 'u' AND old_group.id <> after.group_id DELETE old_rel WITH op, before MATCH (s:Student {id: before.id}) WHERE op = 'd' DETACH DELETE s",
+
+    "neo4j.cypher.topic.dbserver.public.schedule": "WITH __value.payload.op AS op, __value.payload.after AS after, __value.payload.before AS before FOREACH (_ IN CASE WHEN op IN ['c','u','r'] THEN [1] ELSE [] END | MERGE (sch:Schedule {id: after.id}) SET sch = after MERGE (l:Lecture {id: after.lecture_id}) MERGE (g:StudentGroup {id: after.group_id}) MERGE (sch)-[:PART_OF]->(l) MERGE (g)-[:HAS_SCHEDULE]->(sch) ) WITH op, after, before OPTIONAL MATCH (sch:Schedule {id: after.id})-[old_lecture_rel:PART_OF]->(old_l:Lecture) WHERE op = 'u' AND old_l.id <> after.lecture_id DELETE old_lecture_rel WITH op, after, before OPTIONAL MATCH (sch:Schedule {id: after.id})<-[old_group_rel:HAS_SCHEDULE]-(old_g:StudentGroup) WHERE op = 'u' AND old_g.id <> after.group_id DELETE old_group_rel WITH op, before MATCH (sch:Schedule {id: before.id}) WHERE op = 'd' DETACH DELETE sch"
   }
 }
