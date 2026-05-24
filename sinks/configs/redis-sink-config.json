@@ -7,13 +7,13 @@
     "connect.redis.host": "redis-server",
     "connect.redis.port": "6379",
     "connect.redis.kcql": "UPSERT INTO student: SELECT id, first_name, last_name, patronymic, email, phone, student_card_number, group_id, enrollment_date, status FROM dbserver.public.student PK student_card_number",
-    "transforms": "unwrap",
+    "transforms": "unwrap,redisHandler",
     "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
     "transforms.unwrap.drop.tombstones": "false",
-    "transforms.unwrap.delete.handling.mode": "rewrite",
+    "transforms.unwrap.delete.handling.mode": "none",
+    "transforms.redisHandler.type": "com.example.DeletingCdcHandler",
     "value.converter": "org.apache.kafka.connect.json.JsonConverter",
     "value.converter.schemas.enable": "true",
-    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
-    "delete.handling.mode": "drop"
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter"
   }
 }

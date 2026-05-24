@@ -1,14 +1,3 @@
-Запуск только БД и CDC для отладки:
-docker-compose up -d zookeeper kafka kafka-connect kafka-ui data-generator redis mongodb neo4j elasticsearch postgresql connect-setup
-
-
-Проверка подключённых плагинов:
-curl.exe -s http://localhost:8083/connector-plugins?connectorsOnly=false | python -m json.tool
-
-
-
-
-
 
 --------- 0 - 1. Собрать CdcHandler для mongodb в файл .jar (если ещё не собран) (ЗАПУСКАТЬ ИЗ КОРНЯ ПРОЕКТА) ---------
 docker run -it --rm -v ${PWD}\sinks\mongodb-handler:/usr/src/mymaven -w /usr/src/mymaven maven:3.8-openjdk-11 mvn clean package
@@ -31,13 +20,28 @@ move -force sinks\elasticsearch-handler\target\elasticsearch-cdc-handler-1.0-jar
 
 
 
+--------- 0 - 3. Собрать DeletingCdcHandler для redis в файл .jar (если ещё не собран) ---------
+docker run -it --rm -v ${PWD}\sinks\redis-handler:/usr/src/mymaven -w /usr/src/mymaven maven:3.8-openjdk-11 mvn clean package
+
+move -force sinks\redis-handler\target\redis-cdc-handler-1.0-jar-with-dependencies.jar sinks\jars\
+
+
+
+
+
+
 --------- 1. Пересобрать и запустить всё с нуля ---------
 docker-compose down -v; Remove-Item -Recurse -Force -ErrorAction SilentlyContinue @('.\mongodb', '.\elasticsearch', '.\redis', '.\neo4j')
+
 docker-compose up -d
 
-Дождаться, когда контейнер data-generator завершит работу:
 
-docker-compose logs data-generator
+Запуск только БД и CDC для отладки:
+docker-compose up -d zookeeper kafka kafka-connect kafka-ui data-generator redis mongodb neo4j elasticsearch postgresql connect-setup
+
+
+Проверка подключённых плагинов:
+curl.exe -s http://localhost:8083/connector-plugins?connectorsOnly=false | python -m json.tool
 
 
 
@@ -83,15 +87,7 @@ GET ""
 
 REDIS - CREATE:
 
-docker exec -it postgresql-server psql -U admin -d testdb -c "
-INSERT INTO student (id, group_id, first_name, last_name, patronymic, email, phone, student_card_number, enrollment_date, status, created_at, updated_at)
-VALUES ('00000000-0000-0000-0000-000000000001',
-        (SELECT id FROM student_group LIMIT 1),
-        'Test', 'Testov', 'Testovich',
-        'test@test.com', '8-800-555-35-35',
-        'TEST-001', CURRENT_DATE, 'Активный',
-        NOW(), NOW());
-"
+docker exec -it postgresql-server psql -U admin -d testdb -c "INSERT INTO student (id, group_id, first_name, last_name, patronymic, email, phone, student_card_number, enrollment_date, status, created_at, updated_at) VALUES ('00000000-0000-0000-0000-000000000001', (SELECT id FROM student_group LIMIT 1), 'Test', 'Testov', 'Testovich', 'test@test.com', '8-800-555-35-35', 'TEST-001', CURRENT_DATE, 'Активный', NOW(), NOW());"
 
 docker exec -it redis-server redis-cli --raw
 GET "student:TEST-001"
@@ -101,9 +97,7 @@ GET "student:TEST-001"
 
 REDIS - UPDATE:
 
-docker exec -it postgresql-server psql -U admin -d testdb -c "
-UPDATE student SET email = 'updated@test.com' WHERE student_card_number = 'TEST-001';
-"
+docker exec -it postgresql-server psql -U admin -d testdb -c "UPDATE student SET email = 'updated@test.com' WHERE student_card_number = 'TEST-001';"
 
 docker exec -it redis-server redis-cli --raw
 GET "student:TEST-001"
@@ -113,9 +107,7 @@ GET "student:TEST-001"
 
 REDIS - DELETE:
 
-docker exec -it postgresql-server psql -U admin -d testdb -c "
-DELETE FROM student WHERE student_card_number = 'TEST-001';
-"
+docker exec -it postgresql-server psql -U admin -d testdb -c "DELETE FROM student WHERE student_card_number = 'TEST-001';"
 
 docker exec -it redis-server redis-cli --raw
 GET "student:TEST-001"
