@@ -8,6 +8,9 @@ import org.apache.kafka.connect.transforms.Transformation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.URL;
+import java.net.HttpURLConnection;
+import java.util.Base64;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -22,33 +25,26 @@ public class LectureMaterialCdcHandler<R extends ConnectRecord<R>> implements Tr
 
     @Override
     public R apply(R record) {
-        if (record.value() == null) return null;
+        // tombstone – удаляем документ из Elasticsearch напрямую
+        if (record.value() == null) {
+            String table = extractTableName(record.topic());
+            if ("lecture_material".equals(table)) {
+                String id = extractIdFromKey(record.key());
+                deleteFromElasticsearch(id);
+                lectureMaterials.remove(id);
+                log.info("Deleted material {} from Elasticsearch", id);
+            }
+            return null;  // не передаём tombstone дальше коннектору
+        }
 
         Struct value = (Struct) record.value();
         String table = extractTableName(record.topic());
 
-        // Удаление
-        boolean isDeleted = false;
-        try { isDeleted = Boolean.TRUE.equals(value.getBoolean("__deleted")); } catch (Exception ignored) {}
-        if (isDeleted) {
-            if ("lecture_material".equals(table)) {
-                String id = value.getString("id");
-                lectureMaterials.remove(id);
-                log.info("Deleted material: {}", id);
-                return record.newRecord("dbserver.public.lecture_material", record.kafkaPartition(),
-                        Schema.STRING_SCHEMA, id, null, null, record.timestamp());
-            } else {
-                removeFromCache(table, value);
-                return null;
-            }
-        }
-
-        // Обновление кэша
+        // Обновляем кэш (для всех операций, кроме удаления)
         updateCache(table, value);
 
-        // Триггерная отправка
+        // Логика отправки (без изменений, за исключением удаления проверки op)
         if ("lecture_material".equals(table)) {
-            // Новый или обновлённый материал
             String matId = value.getString("id");
             Map<String, Object> doc = buildMaterialDocument(value);
             if (isComplete(doc)) {
@@ -57,7 +53,6 @@ public class LectureMaterialCdcHandler<R extends ConnectRecord<R>> implements Tr
                         Schema.STRING_SCHEMA, matId, null, doc, record.timestamp());
             }
         } else if ("lecture_course".equals(table)) {
-            // Изменился курс — обновляем все его материалы
             String courseId = value.getString("id");
             for (Map.Entry<String, Struct> entry : lectureMaterials.entrySet()) {
                 String matId = entry.getKey();
@@ -70,7 +65,6 @@ public class LectureMaterialCdcHandler<R extends ConnectRecord<R>> implements Tr
                 }
             }
         } else if ("lecture".equals(table)) {
-            // Изменилась лекция — обновляем её материалы
             String lectureId = value.getString("id");
             for (Map.Entry<String, Struct> entry : lectureMaterials.entrySet()) {
                 String matId = entry.getKey();
@@ -85,6 +79,46 @@ public class LectureMaterialCdcHandler<R extends ConnectRecord<R>> implements Tr
         }
 
         return null;
+    }
+
+    private String extractIdFromKey(Object key) {
+        if (key == null) return null;
+        if (key instanceof Struct) {
+            return ((Struct) key).getString("id");
+        }
+        if (key instanceof Map) {
+            return (String) ((Map) key).get("id");
+        }
+        // ключ приходит как JSON-строка; извлекаем id простым поиском
+        String keyStr = key.toString();
+        String search = "\"id\":\"";
+        int idx = keyStr.indexOf(search);
+        if (idx != -1) {
+            int start = idx + search.length();
+            int end = keyStr.indexOf('"', start);
+            if (end != -1) {
+                return keyStr.substring(start, end);
+            }
+        }
+        // если ничего не нашли, возвращаем всю строку (на случай fallback)
+        return keyStr;
+    }
+
+    private void deleteFromElasticsearch(String id) {
+        try {
+            URL url = new URL("http://elasticsearch-server:9200/lecture_material/_doc/" + id);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("DELETE");
+            conn.setRequestProperty("Authorization", "Basic " +
+                Base64.getEncoder().encodeToString("elastic:elastic_pass123".getBytes()));
+            int code = conn.getResponseCode();
+            if (code != 200 && code != 404) {
+                log.warn("Elasticsearch DELETE returned {}", code);
+            }
+            conn.disconnect();
+        } catch (Exception e) {
+            log.error("Failed to delete from Elasticsearch", e);
+        }
     }
 
     private String getCourseIdForMaterial(Struct material) {
