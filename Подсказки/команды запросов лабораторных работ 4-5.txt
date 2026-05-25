@@ -127,96 +127,65 @@ db.universities.find().pretty()
 
 
 
+
 MONGODB (УНИВЕРСИТЕТ) - CREATE:
 
-docker exec -it mongodb-server mongosh -u admin -p admin123
-use testdb
-db.universities.find().pretty()
-
-docker exec -it postgresql-server psql -U admin -d testdb -c "
-INSERT INTO university (id, name, short_name, address, website, founded_year, created_at, updated_at)
-VALUES ('00000000-0000-0000-0000-000000000010',
-        'Тестовый университет',
-        'ТУ',
-        'г. Москва',
-        'https://test.edu',
-        2025,
-        NOW(),
-        NOW());
-"
-
-docker exec -it postgresql-server psql -U admin -d testdb -c "SELECT * FROM university WHERE id = '00000000-0000-0000-0000-000000000010';"
+docker exec -it postgresql-server psql -U admin -d testdb -c "INSERT INTO university (id, name, short_name, address, website, founded_year, created_at, updated_at) VALUES ('00000000-0000-0000-0000-000000000010', 'Тестовый университет', 'ТУ', 'г. Москва', 'https://test.edu', 2025, NOW(), NOW());"
 
 docker exec -it mongodb-server mongosh -u admin -p admin123
 use testdb
-db.universities.findOne({"_id": "00000000-0000-0000-0000-000000000010"})
+db.universities.findOne()
+
 
 
 
 MONGODB (УНИВЕРСИТЕТ) - UPDATE:
 
-docker exec -it postgresql-server psql -U admin -d testdb -c "
-UPDATE university SET name = 'Обновлённый университет' WHERE id = '00000000-0000-0000-0000-000000000010';
-"
+docker exec -it postgresql-server psql -U admin -d testdb -c "UPDATE university SET name = 'Обновлённый университет' WHERE id = '00000000-0000-0000-0000-000000000010';"
 
 docker exec -it mongodb-server mongosh -u admin -p admin123
 use testdb
-db.universities.findOne({"_id": "00000000-0000-0000-0000-000000000010"}, {"name": 1})
+db.universities.findOne()
+
 
 
 
 MONGODB (УНИВЕРСИТЕТ) - DELETE:
 
-docker exec -it postgresql-server psql -U admin -d testdb -c "
-DELETE FROM university WHERE id = '00000000-0000-0000-0000-000000000010';
-"
+docker exec -it postgresql-server psql -U admin -d testdb -c "DELETE FROM university WHERE id = '00000000-0000-0000-0000-000000000010';"
 
 docker exec -it mongodb-server mongosh -u admin -p admin123
 use testdb
-db.universities.findOne({"_id": "00000000-0000-0000-0000-000000000010"})
-
+db.universities.findOne()
 
 
 
 
 MONGODB (ИНСТИТУТ) - CREATE:
 
-docker exec -it postgresql-server psql -U admin -d testdb -c "
-INSERT INTO institute (id, university_id, name, short_name, dean, created_at, updated_at)
-VALUES ('00000000-0000-0000-0000-000000000020',
-        (SELECT id FROM university LIMIT 1),
-        'Тестовый институт',
-        'ТИ',
-        'Декан Тестов',
-        NOW(),
-        NOW());
-"
-
-docker exec -it postgresql-server psql -U admin -d testdb -c "SELECT * FROM universities"
+docker exec -it postgresql-server psql -U admin -d testdb -c "INSERT INTO institute (id, university_id, name, short_name, dean, created_at, updated_at) VALUES ('00000000-0000-0000-0000-000000000020', (SELECT id FROM university LIMIT 1), 'Тестовый институт', 'ТИ', 'Декан Тестов', NOW(), NOW());"
 
 docker exec -it mongodb-server mongosh -u admin -p admin123
 use testdb
 db.universities.findOne()
+
 
 
 
 MONGODB (ИНСТИТУТ) - UPDATE:
 
-docker exec -it postgresql-server psql -U admin -d testdb -c "
-UPDATE institute SET name = 'Обновлённый институт' WHERE id = '00000000-0000-0000-0000-000000000020';
-"
+docker exec -it postgresql-server psql -U admin -d testdb -c "UPDATE institute SET name = 'Обновлённый институт' WHERE id = '00000000-0000-0000-0000-000000000020';"
 
 docker exec -it mongodb-server mongosh -u admin -p admin123
 use testdb
 db.universities.findOne()
+
 
 
 
 MONGODB (ИНСТИТУТ) - DELETE:
 
-docker exec -it postgresql-server psql -U admin -d testdb -c "
-DELETE FROM institute WHERE id = '00000000-0000-0000-0000-000000000020';
-"
+docker exec -it postgresql-server psql -U admin -d testdb -c "DELETE FROM institute WHERE id = '00000000-0000-0000-0000-000000000020';"
 
 docker exec -it mongodb-server mongosh -u admin -p admin123
 use testdb
@@ -225,29 +194,16 @@ db.universities.findOne()
 
 
 
+MONGODB (КАФЕДРА И СПЕЦИАЛЬНОСТЬ) - CREATE:
 
-MONGODB (НОВАЯ СВЯЗЬ КАФЕДРЫ И СПЕЦИАЛЬНОСТИ) - CREATE:
+Кафедра:
+docker exec -i postgresql-server psql -U admin -d testdb -c "INSERT INTO department (id, institute_id, name, short_name, head, room, created_at, updated_at) VALUES ('00000000-0000-0000-0000-000000000040', (SELECT id FROM institute LIMIT 1), 'Тестовая кафедра', 'ТК', 'Заведующий Тестов', '101', NOW(), NOW());"
 
-docker exec -it postgresql-server psql -U admin -d testdb -c "
-INSERT INTO department_specialties (id, department_id, specialty_id, is_primary, created_at)
-VALUES ('00000000-0000-0000-0000-000000000030',
-        (SELECT id FROM department LIMIT 1),
-        (SELECT id FROM specialty LIMIT 1),
-        TRUE,
-        NOW());
-"
+Специальность:
+docker exec -i postgresql-server psql -U admin -d testdb -c "INSERT INTO specialty (id, name, code, degree_level, duration_years, created_at, updated_at) VALUES ('00000000-0000-0000-0000-000000000050', 'Тестовая специальность', '00.00.00', 'Бакалавриат', 4, NOW(), NOW());"
 
-docker exec -it mongodb-server mongosh -u admin -p admin123
-use testdb
-db.universities.findOne()
-
-
-
-MONGODB (КАФЕДРА) - UPDATE:
-
-docker exec -it postgresql-server psql -U admin -d testdb -c "
-UPDATE institute SET name = 'Обновлённый институт' WHERE id = '00000000-0000-0000-0000-000000000020';
-"
+Связь кафедры и специальности:
+docker exec -i postgresql-server psql -U admin -d testdb -c "INSERT INTO department_specialties (id, department_id, specialty_id, is_primary, created_at) VALUES ('00000000-0000-0000-0000-000000000060', '00000000-0000-0000-0000-000000000040', '00000000-0000-0000-0000-000000000050', TRUE, NOW());"
 
 docker exec -it mongodb-server mongosh -u admin -p admin123
 use testdb
@@ -255,17 +211,26 @@ db.universities.findOne()
 
 
 
-MONGODB (КАФЕДРА) - DELETE:
 
-docker exec -it postgresql-server psql -U admin -d testdb -c "
-DELETE FROM institute WHERE id = '00000000-0000-0000-0000-000000000020';
-"
+MONGODB (КАФЕДРА И СПЕЦИАЛЬНОСТЬ - СМЕНА СВЯЗИ) - UPDATE:
+docker exec -i postgresql-server psql -U admin -d testdb -c "UPDATE department_specialties SET department_id = (SELECT id FROM department WHERE id <> (SELECT department_id FROM department_specialties WHERE id = '00000000-0000-0000-0000-000000000060') LIMIT 1) WHERE id = '00000000-0000-0000-0000-000000000060';"
 
 docker exec -it mongodb-server mongosh -u admin -p admin123
 use testdb
 db.universities.findOne()
 
 
+
+
+MONGODB (КАФЕДРА И СПЕЦИАЛЬНОСТЬ - УДАЛЕНИЕ СВЯЗИ СПЕЦИАЛЬНОСТИ С КАФЕДРОЙ) - DELETE:
+docker exec -i postgresql-server psql -U admin -d testdb -c "DELETE FROM department_specialties WHERE id = '00000000-0000-0000-0000-000000000060';"
+
+docker exec -it mongodb-server mongosh -u admin -p admin123
+use testdb
+db.universities.findOne()
+
+
+docker exec -i postgresql-server psql -U admin -d testdb -c "SELECT * FROM department_specialties WHERE specialty_id = '00000000-0000-0000-0000-000000000050';"
 
 
 

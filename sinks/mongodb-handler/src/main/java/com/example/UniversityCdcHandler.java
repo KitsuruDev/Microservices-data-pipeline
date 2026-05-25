@@ -139,7 +139,9 @@ public class UniversityCdcHandler extends CdcHandler {
                                     BsonValue univIdVal = inst.get("university_id");
                                     if (univIdVal != null && univIdVal.isString()) {
                                         String univId = univIdVal.asString().getValue();
-                                        if (universities.containsKey(univId)) affectedUniversities.add(univId);
+                                        if (universities.containsKey(univId)) {
+                                            affectedUniversities.add(univId);
+                                        }
                                     }
                                 }
                             }
@@ -147,19 +149,28 @@ public class UniversityCdcHandler extends CdcHandler {
                     }
                 } else if (before != null && "d".equals(op)) {
                     String dsId = before.getString("id").getValue();
+                    // Получаем полную запись из кэша, т.к. before содержит только PK
+                    BsonDocument cachedDs = deptSpecs.stream()
+                        .filter(d -> d.getString("id").getValue().equals(dsId))
+                        .findFirst().orElse(null);
                     deptSpecs.removeIf(d -> d.getString("id").getValue().equals(dsId));
-                    BsonValue deptIdVal = before.get("department_id");
+
+                    BsonValue deptIdVal = (cachedDs != null) ? cachedDs.get("department_id") : null;
                     if (deptIdVal != null && deptIdVal.isString()) {
-                        BsonDocument dept = departments.get(deptIdVal.asString().getValue());
+                        String deptId = deptIdVal.asString().getValue();
+                        BsonDocument dept = departments.get(deptId);
                         if (dept != null) {
                             BsonValue instIdVal = dept.get("institute_id");
                             if (instIdVal != null && instIdVal.isString()) {
-                                BsonDocument inst = institutes.get(instIdVal.asString().getValue());
+                                String instId = instIdVal.asString().getValue();
+                                BsonDocument inst = institutes.get(instId);
                                 if (inst != null) {
                                     BsonValue univIdVal = inst.get("university_id");
                                     if (univIdVal != null && univIdVal.isString()) {
                                         String univId = univIdVal.asString().getValue();
-                                        if (universities.containsKey(univId)) affectedUniversities.add(univId);
+                                        if (universities.containsKey(univId)) {
+                                            affectedUniversities.add(univId);
+                                        }
                                     }
                                 }
                             }
