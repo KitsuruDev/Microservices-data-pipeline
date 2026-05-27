@@ -1,25 +1,29 @@
 package com.example;
 
-import com.mongodb.kafka.connect.sink.cdc.CdcHandler;
-import com.mongodb.kafka.connect.sink.converter.SinkDocument;
-import com.mongodb.kafka.connect.sink.MongoSinkTopicConfig;
-import com.mongodb.client.model.WriteModel;
+import com.mongodb.client.model.DeleteOneModel;
 import com.mongodb.client.model.ReplaceOneModel;
 import com.mongodb.client.model.ReplaceOptions;
-import com.mongodb.client.model.DeleteOneModel;
-import static com.mongodb.client.model.Filters.eq;
-
-import org.bson.BsonDocument;
-import org.bson.BsonString;
-import org.bson.BsonInt32;
+import com.mongodb.client.model.WriteModel;
+import com.mongodb.kafka.connect.sink.MongoSinkTopicConfig;
+import com.mongodb.kafka.connect.sink.cdc.CdcHandler;
+import com.mongodb.kafka.connect.sink.converter.SinkDocument;
 import org.bson.BsonArray;
+import org.bson.BsonDocument;
+import org.bson.BsonInt32;
+import org.bson.BsonString;
 import org.bson.BsonValue;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static com.mongodb.client.model.Filters.eq;
+
 public class UniversityCdcHandler extends CdcHandler {
 
-    // СТАТИЧЕСКИЕ кэши – состояние теперь общее для всех экземпляров
+    private static final Logger LOG = LoggerFactory.getLogger(UniversityCdcHandler.class);
+
     private static final Map<String, BsonDocument> universities = new ConcurrentHashMap<>();
     private static final Map<String, BsonDocument> institutes = new ConcurrentHashMap<>();
     private static final Map<String, BsonDocument> departments = new ConcurrentHashMap<>();
@@ -28,39 +32,69 @@ public class UniversityCdcHandler extends CdcHandler {
 
     public UniversityCdcHandler(MongoSinkTopicConfig config) {
         super(config);
+        LOG.info("UniversityCdcHandler initialized");
     }
 
     @Override
     public Optional<WriteModel<BsonDocument>> handle(SinkDocument doc) {
         BsonDocument valueDoc = doc.getValueDoc().orElse(null);
-        if (valueDoc == null) return Optional.empty();
+        if (valueDoc == null) {
+            LOG.warn("valueDoc is null");
+            return Optional.empty();
+        }
 
         BsonValue opVal = valueDoc.get("op");
-        if (opVal == null || !opVal.isString()) return Optional.empty();
+        if (opVal == null || !opVal.isString()) {
+            LOG.warn("Missing or invalid 'op'");
+            return Optional.empty();
+        }
         String op = opVal.asString().getValue();
+        LOG.info("Event op={}", op);
 
-        BsonValue afterVal = valueDoc.get("after");
-        BsonDocument after = (afterVal != null && afterVal.isDocument()) ? afterVal.asDocument() : null;
-        BsonValue beforeVal = valueDoc.get("before");
-        BsonDocument before = (beforeVal != null && beforeVal.isDocument()) ? beforeVal.asDocument() : null;
+        BsonDocument after = getDocument(valueDoc, "after");
+        BsonDocument before = getDocument(valueDoc, "before");
 
-        String table = determineTable(after != null ? after : before);
-        if (table == null) return Optional.empty();
+        // Определяем таблицу
+        String table = null;
+        if (after != null) {
+            table = determineTableByFields(after);
+            LOG.debug("Table by fields: {}", table);
+        }
+        if (table == null) {
+            String id = extractId(after, before);
+            if (id != null) {
+                table = findTableInCaches(id);
+                LOG.debug("Table by cache for id {}: {}", id, table);
+            }
+        }
+        if (table == null) {
+            LOG.warn("Cannot determine table for event");
+            return Optional.empty();
+        }
 
-        BsonDocument target = after != null ? after : before;
-        BsonValue idVal = target.get("id");
-        if (idVal == null || !idVal.isString()) return Optional.empty();
-        String id = idVal.asString().getValue();
+        String id = extractId(after, before);
+        if (id == null) {
+            LOG.error("No id found for table {}", table);
+            return Optional.empty();
+        }
+        LOG.info("Processing table={}, op={}, id={}", table, op, id);
 
-        Set<String> affectedUniversities = new HashSet<>();
-
+        // Обработка каждой таблицы
         switch (table) {
             case "university":
                 if (after != null && ("c".equals(op) || "r".equals(op) || "u".equals(op))) {
                     universities.put(id, after);
-                    affectedUniversities.add(id);
+                    LOG.info("Cached university {}", id);
+                    BsonDocument docOut = buildUniversityDocument(id);
+                    if (docOut != null) {
+                        return Optional.of(new ReplaceOneModel<>(eq("_id", docOut.getString("_id").getValue()), docOut, new ReplaceOptions().upsert(true)));
+                    } else {
+                        LOG.error("Failed to build university document for {}", id);
+                        return Optional.empty();
+                    }
                 } else if (before != null && "d".equals(op)) {
                     universities.remove(id);
+                    LOG.info("Deleted university {}, returning DeleteOneModel", id);
                     return Optional.of(new DeleteOneModel<>(eq("_id", new BsonString(id))));
                 }
                 break;
@@ -68,17 +102,23 @@ public class UniversityCdcHandler extends CdcHandler {
             case "institute":
                 if (after != null && ("c".equals(op) || "r".equals(op) || "u".equals(op))) {
                     institutes.put(id, after);
-                    BsonValue univIdVal = after.get("university_id");
-                    if (univIdVal != null && univIdVal.isString()) {
-                        String univId = univIdVal.asString().getValue();
-                        if (universities.containsKey(univId)) affectedUniversities.add(univId);
+                    LOG.info("Cached institute {}", id);
+                    String univId = getUniversityIdFromInstitute(after);
+                    if (univId != null && universities.containsKey(univId)) {
+                        BsonDocument univDoc = buildUniversityDocument(univId);
+                        if (univDoc != null) {
+                            return Optional.of(new ReplaceOneModel<>(eq("_id", univDoc.getString("_id").getValue()), univDoc, new ReplaceOptions().upsert(true)));
+                        }
                     }
                 } else if (before != null && "d".equals(op)) {
-                    institutes.remove(id);
-                    BsonValue univIdVal = before.get("university_id");
-                    if (univIdVal != null && univIdVal.isString()) {
-                        String univId = univIdVal.asString().getValue();
-                        if (universities.containsKey(univId)) affectedUniversities.add(univId);
+                    BsonDocument cached = institutes.remove(id);
+                    LOG.info("Deleted institute {}", id);
+                    String univId = (cached != null) ? getUniversityIdFromInstitute(cached) : null;
+                    if (univId != null && universities.containsKey(univId)) {
+                        BsonDocument univDoc = buildUniversityDocument(univId);
+                        if (univDoc != null) {
+                            return Optional.of(new ReplaceOneModel<>(eq("_id", univDoc.getString("_id").getValue()), univDoc, new ReplaceOptions().upsert(true)));
+                        }
                     }
                 }
                 break;
@@ -86,28 +126,22 @@ public class UniversityCdcHandler extends CdcHandler {
             case "department":
                 if (after != null && ("c".equals(op) || "r".equals(op) || "u".equals(op))) {
                     departments.put(id, after);
-                    BsonValue instIdVal = after.get("institute_id");
-                    if (instIdVal != null && instIdVal.isString()) {
-                        BsonDocument inst = institutes.get(instIdVal.asString().getValue());
-                        if (inst != null) {
-                            BsonValue univIdVal = inst.get("university_id");
-                            if (univIdVal != null && univIdVal.isString()) {
-                                String univId = univIdVal.asString().getValue();
-                                if (universities.containsKey(univId)) affectedUniversities.add(univId);
-                            }
+                    LOG.info("Cached department {}", id);
+                    String univId = getUniversityIdFromDepartment(after);
+                    if (univId != null && universities.containsKey(univId)) {
+                        BsonDocument univDoc = buildUniversityDocument(univId);
+                        if (univDoc != null) {
+                            return Optional.of(new ReplaceOneModel<>(eq("_id", univDoc.getString("_id").getValue()), univDoc, new ReplaceOptions().upsert(true)));
                         }
                     }
                 } else if (before != null && "d".equals(op)) {
-                    departments.remove(id);
-                    BsonValue instIdVal = before.get("institute_id");
-                    if (instIdVal != null && instIdVal.isString()) {
-                        BsonDocument inst = institutes.get(instIdVal.asString().getValue());
-                        if (inst != null) {
-                            BsonValue univIdVal = inst.get("university_id");
-                            if (univIdVal != null && univIdVal.isString()) {
-                                String univId = univIdVal.asString().getValue();
-                                if (universities.containsKey(univId)) affectedUniversities.add(univId);
-                            }
+                    BsonDocument cached = departments.remove(id);
+                    LOG.info("Deleted department {}", id);
+                    String univId = (cached != null) ? getUniversityIdFromDepartment(cached) : null;
+                    if (univId != null && universities.containsKey(univId)) {
+                        BsonDocument univDoc = buildUniversityDocument(univId);
+                        if (univDoc != null) {
+                            return Optional.of(new ReplaceOneModel<>(eq("_id", univDoc.getString("_id").getValue()), univDoc, new ReplaceOptions().upsert(true)));
                         }
                     }
                 }
@@ -116,63 +150,51 @@ public class UniversityCdcHandler extends CdcHandler {
             case "specialty":
                 if (after != null && ("c".equals(op) || "r".equals(op) || "u".equals(op))) {
                     specialties.put(id, after);
-                    affectedUniversities.addAll(universities.keySet());
+                    LOG.info("Cached specialty {}", id);
+                    // Обновляем все университеты, где есть эта специальность
+                    for (String univId : universities.keySet()) {
+                        BsonDocument univDoc = buildUniversityDocument(univId);
+                        if (univDoc != null) {
+                            return Optional.of(new ReplaceOneModel<>(eq("_id", univDoc.getString("_id").getValue()), univDoc, new ReplaceOptions().upsert(true)));
+                        }
+                    }
                 } else if (before != null && "d".equals(op)) {
                     specialties.remove(id);
-                    affectedUniversities.addAll(universities.keySet());
+                    LOG.info("Deleted specialty {}", id);
+                    for (String univId : universities.keySet()) {
+                        BsonDocument univDoc = buildUniversityDocument(univId);
+                        if (univDoc != null) {
+                            return Optional.of(new ReplaceOneModel<>(eq("_id", univDoc.getString("_id").getValue()), univDoc, new ReplaceOptions().upsert(true)));
+                        }
+                    }
                 }
                 break;
 
             case "department_specialties":
                 if (after != null && ("c".equals(op) || "r".equals(op) || "u".equals(op))) {
+                    // Обновляем или добавляем связь
                     String dsId = after.getString("id").getValue();
-                    deptSpecs.removeIf(d -> d.getString("id").getValue().equals(dsId));
+                    deptSpecs.removeIf(d -> dsId.equals(d.getString("id").getValue()));
                     deptSpecs.add(after);
-                    BsonValue deptIdVal = after.get("department_id");
-                    if (deptIdVal != null && deptIdVal.isString()) {
-                        BsonDocument dept = departments.get(deptIdVal.asString().getValue());
-                        if (dept != null) {
-                            BsonValue instIdVal = dept.get("institute_id");
-                            if (instIdVal != null && instIdVal.isString()) {
-                                BsonDocument inst = institutes.get(instIdVal.asString().getValue());
-                                if (inst != null) {
-                                    BsonValue univIdVal = inst.get("university_id");
-                                    if (univIdVal != null && univIdVal.isString()) {
-                                        String univId = univIdVal.asString().getValue();
-                                        if (universities.containsKey(univId)) {
-                                            affectedUniversities.add(univId);
-                                        }
-                                    }
-                                }
-                            }
+                    LOG.info("Cached department_specialties {}", dsId);
+                    String univId = getUniversityIdFromDeptSpec(after);
+                    if (univId != null && universities.containsKey(univId)) {
+                        BsonDocument univDoc = buildUniversityDocument(univId);
+                        if (univDoc != null) {
+                            return Optional.of(new ReplaceOneModel<>(eq("_id", univDoc.getString("_id").getValue()), univDoc, new ReplaceOptions().upsert(true)));
                         }
                     }
                 } else if (before != null && "d".equals(op)) {
                     String dsId = before.getString("id").getValue();
-                    // Получаем полную запись из кэша, т.к. before содержит только PK
-                    BsonDocument cachedDs = deptSpecs.stream()
-                        .filter(d -> d.getString("id").getValue().equals(dsId))
-                        .findFirst().orElse(null);
-                    deptSpecs.removeIf(d -> d.getString("id").getValue().equals(dsId));
-
-                    BsonValue deptIdVal = (cachedDs != null) ? cachedDs.get("department_id") : null;
-                    if (deptIdVal != null && deptIdVal.isString()) {
-                        String deptId = deptIdVal.asString().getValue();
-                        BsonDocument dept = departments.get(deptId);
-                        if (dept != null) {
-                            BsonValue instIdVal = dept.get("institute_id");
-                            if (instIdVal != null && instIdVal.isString()) {
-                                String instId = instIdVal.asString().getValue();
-                                BsonDocument inst = institutes.get(instId);
-                                if (inst != null) {
-                                    BsonValue univIdVal = inst.get("university_id");
-                                    if (univIdVal != null && univIdVal.isString()) {
-                                        String univId = univIdVal.asString().getValue();
-                                        if (universities.containsKey(univId)) {
-                                            affectedUniversities.add(univId);
-                                        }
-                                    }
-                                }
+                    BsonDocument toRemove = deptSpecs.stream().filter(d -> dsId.equals(d.getString("id").getValue())).findFirst().orElse(null);
+                    deptSpecs.removeIf(d -> dsId.equals(d.getString("id").getValue()));
+                    LOG.info("Deleted department_specialties {}", dsId);
+                    if (toRemove != null) {
+                        String univId = getUniversityIdFromDeptSpec(toRemove);
+                        if (univId != null && universities.containsKey(univId)) {
+                            BsonDocument univDoc = buildUniversityDocument(univId);
+                            if (univDoc != null) {
+                                return Optional.of(new ReplaceOneModel<>(eq("_id", univDoc.getString("_id").getValue()), univDoc, new ReplaceOptions().upsert(true)));
                             }
                         }
                     }
@@ -180,20 +202,27 @@ public class UniversityCdcHandler extends CdcHandler {
                 break;
         }
 
-        for (String univId : affectedUniversities) {
-            BsonDocument univDoc = buildUniversityDocument(univId);
-            if (univDoc != null) {
-                return Optional.of(new ReplaceOneModel<>(
-                        eq("_id", univDoc.getString("_id").getValue()),
-                        univDoc,
-                        new ReplaceOptions().upsert(true)
-                ));
-            }
-        }
+        LOG.info("No write model produced for event table={}, op={}, id={}", table, op, id);
         return Optional.empty();
     }
 
-    private String determineTable(BsonDocument doc) {
+    // ------------------------------------------------------------------------
+    // Вспомогательные методы
+    // ------------------------------------------------------------------------
+
+    private BsonDocument getDocument(BsonDocument valueDoc, String field) {
+        BsonValue val = valueDoc.get(field);
+        return (val != null && val.isDocument()) ? val.asDocument() : null;
+    }
+
+    private String extractId(BsonDocument after, BsonDocument before) {
+        BsonDocument target = after != null ? after : before;
+        if (target == null) return null;
+        BsonValue idVal = target.get("id");
+        return (idVal != null && idVal.isString()) ? idVal.asString().getValue() : null;
+    }
+
+    private String determineTableByFields(BsonDocument doc) {
         if (doc.containsKey("dean")) return "institute";
         if (doc.containsKey("head")) return "department";
         if (doc.containsKey("degree_level")) return "specialty";
@@ -202,9 +231,48 @@ public class UniversityCdcHandler extends CdcHandler {
         return null;
     }
 
+    private String findTableInCaches(String id) {
+        if (universities.containsKey(id)) return "university";
+        if (institutes.containsKey(id)) return "institute";
+        if (departments.containsKey(id)) return "department";
+        if (specialties.containsKey(id)) return "specialty";
+        if (deptSpecs.stream().anyMatch(d -> id.equals(d.getString("id").getValue()))) return "department_specialties";
+        return null;
+    }
+
+    private String getUniversityIdFromInstitute(BsonDocument inst) {
+        BsonValue univId = inst.get("university_id");
+        return (univId != null && univId.isString()) ? univId.asString().getValue() : null;
+    }
+
+    private String getUniversityIdFromDepartment(BsonDocument dept) {
+        BsonValue instIdVal = dept.get("institute_id");
+        if (instIdVal == null || !instIdVal.isString()) return null;
+        BsonDocument inst = institutes.get(instIdVal.asString().getValue());
+        if (inst == null) return null;
+        BsonValue univId = inst.get("university_id");
+        return (univId != null && univId.isString()) ? univId.asString().getValue() : null;
+    }
+
+    private String getUniversityIdFromDeptSpec(BsonDocument deptSpec) {
+        BsonValue deptIdVal = deptSpec.get("department_id");
+        if (deptIdVal == null || !deptIdVal.isString()) return null;
+        BsonDocument dept = departments.get(deptIdVal.asString().getValue());
+        if (dept == null) return null;
+        BsonValue instIdVal = dept.get("institute_id");
+        if (instIdVal == null || !instIdVal.isString()) return null;
+        BsonDocument inst = institutes.get(instIdVal.asString().getValue());
+        if (inst == null) return null;
+        BsonValue univId = inst.get("university_id");
+        return (univId != null && univId.isString()) ? univId.asString().getValue() : null;
+    }
+
     private BsonDocument buildUniversityDocument(String universityId) {
         BsonDocument univ = universities.get(universityId);
-        if (univ == null) return null;
+        if (univ == null) {
+            LOG.error("University {} not found in cache", universityId);
+            return null;
+        }
 
         BsonDocument result = new BsonDocument();
         result.put("_id", univ.getString("id"));
@@ -213,20 +281,13 @@ public class UniversityCdcHandler extends CdcHandler {
         result.put("address", univ.getString("address"));
         result.put("website", univ.getString("website"));
         BsonValue yearVal = univ.get("founded_year");
-        if (yearVal != null && yearVal.isInt32()) {
-            result.put("founded_year", yearVal.asInt32());
-        } else {
-            result.put("founded_year", new BsonInt32(0));
-        }
+        result.put("founded_year", (yearVal != null && yearVal.isInt32()) ? yearVal.asInt32() : new BsonInt32(0));
 
         BsonArray institutesArray = new BsonArray();
         for (BsonDocument inst : institutes.values()) {
-            BsonValue instUnivIdVal = inst.get("university_id");
-            if (instUnivIdVal == null || !instUnivIdVal.isString()) continue;
-            if (!universityId.equals(instUnivIdVal.asString().getValue())) continue;
+            if (!universityId.equals(getUniversityIdFromInstitute(inst))) continue;
 
             BsonDocument instDoc = new BsonDocument();
-            String instId = inst.getString("id").getValue();
             instDoc.put("_id", inst.getString("id"));
             instDoc.put("university_id", inst.getString("university_id"));
             instDoc.put("name", inst.getString("name"));
@@ -237,10 +298,9 @@ public class UniversityCdcHandler extends CdcHandler {
             for (BsonDocument dept : departments.values()) {
                 BsonValue deptInstIdVal = dept.get("institute_id");
                 if (deptInstIdVal == null || !deptInstIdVal.isString()) continue;
-                if (!instId.equals(deptInstIdVal.asString().getValue())) continue;
+                if (!inst.getString("id").getValue().equals(deptInstIdVal.asString().getValue())) continue;
 
                 BsonDocument deptDoc = new BsonDocument();
-                String deptId = dept.getString("id").getValue();
                 deptDoc.put("_id", dept.getString("id"));
                 deptDoc.put("institute_id", dept.getString("institute_id"));
                 deptDoc.put("name", dept.getString("name"));
@@ -253,7 +313,7 @@ public class UniversityCdcHandler extends CdcHandler {
                 for (BsonDocument ds : deptSpecs) {
                     BsonValue dsDeptIdVal = ds.get("department_id");
                     if (dsDeptIdVal == null || !dsDeptIdVal.isString()) continue;
-                    if (deptId.equals(dsDeptIdVal.asString().getValue())) {
+                    if (dept.getString("id").getValue().equals(dsDeptIdVal.asString().getValue())) {
                         BsonValue specIdVal = ds.get("specialty_id");
                         if (specIdVal == null || !specIdVal.isString()) continue;
                         String specId = specIdVal.asString().getValue();

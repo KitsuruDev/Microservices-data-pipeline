@@ -3,7 +3,7 @@
 docker run -it --rm -v ${PWD}\sinks\mongodb-handler:/usr/src/mymaven -w /usr/src/mymaven maven:3.8-openjdk-11 mvn clean package
 
 После успешной сборки необходимо переместить jar ко всем jar-ам:
-move -force sinks\mongodb-handler\target\university-cdc-handler-1.0-jar-with-dependencies.jar sinks\jars\
+move -force sinks\mongodb-handler\target\mongodb-cdc-handler-1.0-jar-with-dependencies.jar sinks\jars\
 
 
 
@@ -13,7 +13,7 @@ move -force sinks\mongodb-handler\target\university-cdc-handler-1.0-jar-with-dep
 --------- 0 - 2. Собрать LectureMaterialCdcHandler для elasticsearch в файл .jar (если ещё не собран) ---------
 docker run -it --rm -v ${PWD}\sinks\elasticsearch-handler:/usr/src/mymaven -w /usr/src/mymaven maven:3.8-openjdk-11 mvn clean package
 
-move -force sinks\elasticsearch-handler\target\elasticsearch-cdc-handler-1.0-jar-with-dependencies.jar sinks\jars\
+move -force sinks\elasticsearch-handler\target\elasticsearch-cdc-handler-1.0.jar sinks\jars\
 
 
 
@@ -225,12 +225,13 @@ db.universities.findOne()
 MONGODB (КАФЕДРА И СПЕЦИАЛЬНОСТЬ - УДАЛЕНИЕ СВЯЗИ СПЕЦИАЛЬНОСТИ С КАФЕДРОЙ) - DELETE:
 docker exec -i postgresql-server psql -U admin -d testdb -c "DELETE FROM department_specialties WHERE id = '00000000-0000-0000-0000-000000000060';"
 
+docker exec -i postgresql-server psql -U admin -d testdb -c "SELECT * FROM department_specialties WHERE specialty_id = '00000000-0000-0000-0000-000000000050';"
+
 docker exec -it mongodb-server mongosh -u admin -p admin123
 use testdb
 db.universities.findOne()
 
 
-docker exec -i postgresql-server psql -U admin -d testdb -c "SELECT * FROM department_specialties WHERE specialty_id = '00000000-0000-0000-0000-000000000050';"
 
 
 
