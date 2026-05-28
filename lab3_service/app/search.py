@@ -8,6 +8,7 @@ from neo4j import GraphDatabase
 import redis
 import pymongo
 from db_config import POSTGRES_CONFIG, NEO4J_CONFIG, REDIS_CONFIG, MONGO_CONFIG
+import json
 
 # ------- Подключения -------
 def get_postgres_connection():
@@ -131,7 +132,7 @@ def generate_report(group_name: str):
         # 7. Обогащение студентов группы из Redis
         pipe = redis_client.pipeline()
         for card in student_card_map.values():
-            pipe.hgetall(f"student:{card}")
+            pipe.get(f"student:{card}")
         redis_data = pipe.execute()
 
         # 8. Информация об университете (MongoDB)
@@ -141,7 +142,7 @@ def generate_report(group_name: str):
         students_out = []
         
         for idx, (student_id, card) in enumerate(student_card_map.items()):
-            rd = redis_data[idx] or {}
+            rd = json.loads(redis_data[idx]) if redis_data[idx] else {}
             courses_list = []
 
             for course_id, count_hours in student_course_hours.get(student_id, {}).items():

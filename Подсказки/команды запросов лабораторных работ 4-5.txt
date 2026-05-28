@@ -81,7 +81,7 @@ docker-compose exec kafka kafka-console-consumer --bootstrap-server kafka:9092 -
 docker exec -it redis-server redis-cli --raw
 DBSIZE
 KEYS *
-HGETALL ""
+GET ""
 
 
 

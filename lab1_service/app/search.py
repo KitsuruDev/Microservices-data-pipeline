@@ -11,6 +11,7 @@ from datetime import datetime
 import psycopg2
 import redis
 import pymongo
+import json
 from neo4j import GraphDatabase
 from elasticsearch import Elasticsearch
 from db_config import (
@@ -163,11 +164,12 @@ def enrich_students_from_redis(redis_client, student_stats):
     pipe = redis_client.pipeline()
     for s in student_stats:
         key = f"student:{s['student_card_number']}"
-        pipe.hgetall(key)
+        pipe.get(key)
     redis_data_list = pipe.execute()
     enriched = []
     for i, student in enumerate(student_stats):
-        redis_data = redis_data_list[i] or {}
+        redis_data_str = redis_data_list[i]
+        redis_data = json.loads(redis_data_str) if redis_data_str else {}
         enriched.append({
             'last_name': redis_data.get('last_name', ''),
             'first_name': redis_data.get('first_name', ''),
