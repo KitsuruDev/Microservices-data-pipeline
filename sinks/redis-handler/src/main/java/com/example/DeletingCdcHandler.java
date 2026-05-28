@@ -42,7 +42,7 @@ public class DeletingCdcHandler<R extends ConnectRecord<R>> implements Transform
 
     @Override
     public R apply(R record) {
-        // tombstone – удаляем ключ из Redis
+        // tombstone - удаляем ключ из Redis
         if (record.value() == null) {
             String id = extractIdFromKey(record.key());
             if (id != null) {
@@ -94,7 +94,7 @@ public class DeletingCdcHandler<R extends ConnectRecord<R>> implements Transform
         if (value instanceof Map) {
             return (String) ((Map) value).get(fieldName);
         }
-        // значение – строка (JSON)
+        // значение - строка (JSON)
         return extractJsonStringField(value.toString(), fieldName);
     }
 

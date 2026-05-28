@@ -20,7 +20,7 @@ public class LectureMaterialCdcHandler<R extends ConnectRecord<R>> implements Tr
 
     @Override
     public R apply(R record) {
-        // Tombstone – удаление документа из Elasticsearch
+        // Tombstone - удаление документа из Elasticsearch
         if (record.value() == null) {
             String topic = record.topic();
             if (topic != null && topic.endsWith("lecture_material")) {
@@ -53,7 +53,7 @@ public class LectureMaterialCdcHandler<R extends ConnectRecord<R>> implements Tr
                 Schema.STRING_SCHEMA,                // key schema
                 materialId,                          // key
                 null,                                // value schema (null = нет схемы)
-                doc,                                 // значение – документ для ES
+                doc,                                 // значение - документ для ES
                 record.timestamp()
         );
     }
@@ -66,7 +66,7 @@ public class LectureMaterialCdcHandler<R extends ConnectRecord<R>> implements Tr
         if (key instanceof Map) {
             return (String) ((Map<?, ?>) key).get("id");
         }
-        // JSON-строка – упрощённый парсинг
+        // JSON-строка - упрощённый парсинг
         String keyStr = key.toString();
         String search = "\"id\":\"";
         int idx = keyStr.indexOf(search);

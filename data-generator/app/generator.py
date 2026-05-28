@@ -617,7 +617,7 @@ def run_generation():
         lecture_by_course.setdefault(str(lec['course_id']), []).append(lec['id'])
 
     for semester_name, start_d, end_d, active_semesters in semesters_config:
-        print(f"Генерация расписания для {semester_name} ({start_d} – {end_d})...")
+        print(f"Генерация расписания для {semester_name} ({start_d} - {end_d})...")
 
         # отбираем лекции, чьи курсы принадлежат одному из активных семестров
         active_lecture_ids = []

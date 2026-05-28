@@ -61,7 +61,7 @@ def find_lecture_ids_by_term(es_client, term):
         "size": 1000,
         "_source": ["lecture_id"]
     }
-    response = es_client.search(index="materials", body=query_body)
+    response = es_client.search(index="lecture_material", body=query_body)
     lecture_ids = set()
     for hit in response['hits']['hits']:
         lid = hit['_source'].get('lecture_id')
@@ -79,13 +79,13 @@ def get_students_and_schedules(neo4j_driver, lecture_ids, start_date, end_date):
             MATCH (g:StudentGroup)-[:HAS_SCHEDULE]->(sch)
             MATCH (g)-[:HAS_STUDENT]->(s:Student)
             WHERE l.id IN $lecture_ids 
-              AND sch.date >= $start_date 
-              AND sch.date <= $end_date
+            AND sch.scheduled_date >= $start_date 
+            AND sch.scheduled_date <= $end_date
             RETURN DISTINCT 
                 sch.id AS schedule_id, 
                 g.id AS group_id, 
                 s.id AS student_id,
-                sch.date AS date
+                sch.scheduled_date AS date
         """
         result = session.run(
             query,
@@ -183,12 +183,10 @@ def enrich_students_from_redis(redis_client, student_stats):
     return enriched
 
 # ==================== MONGODB ====================
-def get_university_info(mongo_client):
+def get_all_universities(mongo_client):
     db = mongo_client[MONGO_CONFIG['database']]
-    doc = db.universities.find_one({}, {"name": 1, "address": 1, "website": 1})
-    if doc:
-        return {"name": doc.get("name"), "address": doc.get("address"), "website": doc.get("website")}
-    return {"name": "N/D", "address": "N/D", "website": "N/D"}
+    cursor = db.universities.find({}, {"name": 1, "address": 1, "website": 1})
+    return list(cursor)  # список словарей
 
 def get_min_max_schedule_dates(postgres_conn):
     with postgres_conn.cursor() as cur:
@@ -224,13 +222,14 @@ def generate_report(term, start_date, end_date):
         redis_client.close()
 
         mongo_client = get_mongo_client()
-        university_info = get_university_info(mongo_client)
+        universities = get_all_universities(mongo_client)
         mongo_client.close()
 
-        for student in enriched_students:
-            student['university'] = university_info
-
-        return enriched_students
+        return {
+            "students": enriched_students,
+            "universities": universities
+        }
+        
     except Exception as e:
         import traceback
         print("ERROR in generate_report:")

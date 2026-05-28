@@ -67,8 +67,8 @@ services:
 
   # -------------------- Генератор данных (только PostgreSQL) --------------------
   data-generator:
-    build: ./generator
-    container_name: generator
+    build: ./data-generator
+    container_name: data-generator
     depends_on:
       postgresql:
         condition: service_healthy
@@ -263,14 +263,12 @@ services:
       - data-network
 
   # -------------------- Генератор сертификатов --------------------
-  # запускается один раз, генерирует сертификаты, вырубается, после чего сертификаты используются в других контейнерах
+  # генерирует сертификаты, после чего они используются в клиентском (gateway) и серверном (nginx) контейнерах
   cert-generator:
-    image: ubuntu:22.04
+    build: ./cert-generator
     container_name: cert-generator
     volumes:
       - certs_data:/certs
-      - ./scripts/generate-all-certs.sh:/generate-all-certs.sh:ro
-    command: bash -c "apt-get update && apt-get install -y openssl && sh /generate-all-certs.sh"
     networks:
       - data-network
 
@@ -300,7 +298,7 @@ services:
     ports:
       - "8443:443"
     volumes:
-      - ./scripts/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - certs_data:/etc/nginx/certs:ro
     networks:
       - data-network

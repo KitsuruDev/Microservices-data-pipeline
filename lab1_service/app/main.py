@@ -1,10 +1,6 @@
-"""
-lab1_service - main.py
-"""
-
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List
 import search
 from datetime import date
 from auth import verify_service_token
@@ -27,10 +23,10 @@ class StudentReport(BaseModel):
     specialty_name: str
     total_scheduled: int
     attendance_percent: float
-    university: Optional[UniversityInfo] = None
 
 class ReportResponse(BaseModel):
     students: List[StudentReport]
+    universities: List[UniversityInfo] = []
 
 # эндпоинт запуска поиска данных (защищён через verify_service_token)
 @app.post("/report", response_model=ReportResponse)
@@ -54,7 +50,7 @@ async def report(term: str, start_date: str, end_date: str, _ = Depends(verify_s
         data = search.generate_report(term, start_adj.isoformat(), end_adj.isoformat())
         if not data:
             return ReportResponse(students=[])
-        return ReportResponse(students=data)
+        return ReportResponse(**data)
     except ValueError as e:
         import traceback
         traceback.print_exc()

@@ -1,0 +1,10 @@
+# cert-generator - dockerfile
+
+FROM ubuntu:22.04
+
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
+COPY ./generate-all-certs.sh /generate-all-certs.sh
+RUN chmod +x /generate-all-certs.sh
+
+ENTRYPOINT ["/generate-all-certs.sh"]

@@ -1,10 +1,6 @@
-"""
-lab3_service - main.py
-"""
-
 from fastapi import FastAPI, Depends, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from typing import List
 import search
 from auth import verify_service_token
 
@@ -25,9 +21,14 @@ class StudentReport(BaseModel):
     phone: str
     courses: List[CourseHours]
 
+class UniversityInfo(BaseModel):
+    name: str
+    address: str
+    website: str
+
 class ReportResponse(BaseModel):
     group_name: str
-    university: Optional[Dict[str, Any]] = None
+    universities: List[UniversityInfo] = []
     students: List[StudentReport]
 
 @app.post("/report", response_model=ReportResponse)

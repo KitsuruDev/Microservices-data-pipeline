@@ -50,13 +50,18 @@ $lines += "ОТЧЁТ: 10 студентов с минимальным проц�
 $lines += "=" * 165
 $lines += "Параметры отчёта:"
 $lines += "  Термин:                     '$Term'"
-$lines += "  Период:                     $StartDate – $EndDate"
+$lines += "  Период:                     $StartDate - $EndDate"
 
-if ($report.students.Count -gt 0 -and $report.students[0].university) {
-    $uni = $report.students[0].university
-    $lines += "  Университет (MongoDB):     $($uni.name)"
-    $lines += "  Адрес:                     $($uni.address)"
+# Вывод университетов
+if ($report.universities -and $report.universities.Count -gt 0) {
+    $lines += "Университеты (MongoDB):"
+    foreach ($uni in $report.universities) {
+        $lines += "  - $($uni.name), $($uni.address), $($uni.website)"
+    }
+} else {
+    $lines += "Университеты (MongoDB): не найдены"
 }
+$lines += ""
 
 $lines += "`nРезультаты:"
 $lines += "-" * 165

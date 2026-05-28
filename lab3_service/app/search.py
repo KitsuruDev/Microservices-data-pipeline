@@ -25,6 +25,12 @@ def get_mongo_client():
     return pymongo.MongoClient(host=MONGO_CONFIG['host'], port=MONGO_CONFIG['port'],
                                username=MONGO_CONFIG['username'], password=MONGO_CONFIG['password'])
 
+def get_all_universities(mongo_client):
+    db = mongo_client[MONGO_CONFIG['database']]
+    cursor = db.universities.find({}, {"name": 1, "address": 1, "website": 1})
+    return list(cursor)  # список словарей
+
+
 # ------- Основной отчёт -------
 def generate_report(group_name: str):
     pg_conn = get_postgres_connection()
@@ -129,13 +135,7 @@ def generate_report(group_name: str):
         redis_data = pipe.execute()
 
         # 8. Информация об университете (MongoDB)
-        db = mongo_client[MONGO_CONFIG['database']]
-        uni_doc = db.universities.find_one({}, {"name": 1, "address": 1, "website": 1})
-        university_info = {
-            "name": uni_doc.get("name", "N/D") if uni_doc else "N/D",
-            "address": uni_doc.get("address", "N/D") if uni_doc else "N/D",
-            "website": uni_doc.get("website", "N/D") if uni_doc else "N/D"
-        }
+        universities = get_all_universities(mongo_client)
 
         # 9. Сборка ответа
         students_out = []
@@ -165,7 +165,7 @@ def generate_report(group_name: str):
 
         return {
             "group_name": group_name,
-            "university": university_info,
+            "universities": universities,
             "students": students_out
         }
 
@@ -174,6 +174,7 @@ def generate_report(group_name: str):
         print("ERROR in generate_report (lab3):")
         traceback.print_exc()
         return {"group_name": group_name, "students": []}
+        
     finally:
         pg_conn.close()
         neo4j_driver.close()

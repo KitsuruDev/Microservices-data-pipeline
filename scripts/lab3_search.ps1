@@ -50,11 +50,15 @@ $lines += "=" * 165
 $lines += "Параметры запроса:"
 $lines += "  Группа:                   $GroupName"
 
-# Университет из MongoDB (если есть)
-if ($report.university) {
-    $lines += "  Университет:             $($report.university.name)"
-    $lines += "  Адрес:                    $($report.university.address)"
-    $lines += "  Сайт:                     $($report.university.website)"
+if ($report.universities -and $report.universities.Count -gt 0) {
+    $lines += "  Университеты (MongoDB):"
+    foreach ($uni in $report.universities) {
+        $lines += "    - $($uni.name)"
+        $lines += "      Адрес: $($uni.address)"
+        $lines += "      Сайт:  $($uni.website)"
+    }
+} else {
+    $lines += "  Университеты (MongoDB): не найдены"
 }
 
 if ($report.students.Count -eq 0) {
