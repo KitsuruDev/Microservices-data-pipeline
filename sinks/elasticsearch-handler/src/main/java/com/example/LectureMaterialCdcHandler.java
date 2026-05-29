@@ -36,13 +36,13 @@ public class LectureMaterialCdcHandler<R extends ConnectRecord<R>> implements Tr
         // Обрабатываем только записи из топика lecture_material
         String topic = record.topic();
         if (topic == null || !topic.endsWith("lecture_material")) {
-            return null; // игнорируем другие топики
+            return null;
         }
 
         Struct value = (Struct) record.value();
         String materialId = value.getString("id");
 
-        // Строим документ для Elasticsearch без обогащения
+        // Строим документ для Elasticsearch
         Map<String, Object> doc = buildDocument(value);
 
         // Отправляем в Elasticsearch через коннектор
@@ -66,7 +66,7 @@ public class LectureMaterialCdcHandler<R extends ConnectRecord<R>> implements Tr
         if (key instanceof Map) {
             return (String) ((Map<?, ?>) key).get("id");
         }
-        // JSON-строка - упрощённый парсинг
+        
         String keyStr = key.toString();
         String search = "\"id\":\"";
         int idx = keyStr.indexOf(search);

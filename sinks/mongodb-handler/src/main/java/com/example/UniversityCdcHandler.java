@@ -206,10 +206,6 @@ public class UniversityCdcHandler extends CdcHandler {
         return Optional.empty();
     }
 
-    // ------------------------------------------------------------------------
-    // Вспомогательные методы
-    // ------------------------------------------------------------------------
-
     private BsonDocument getDocument(BsonDocument valueDoc, String field) {
         BsonValue val = valueDoc.get(field);
         return (val != null && val.isDocument()) ? val.asDocument() : null;
