@@ -1,40 +1,71 @@
 graph TB
-    subgraph NEO4J["NEO4J - Посещения"]
+    subgraph NEO4J["NEO4J - Посещения (граф)"]
         style NEO4J fill:#D4E6F1,stroke:#3A6EA5,stroke-width:2px
         direction TB
         
-        N_StudentGroup["(:StudentGroup {id: 'grp-001', name: 'БСБО-01-23'})"]
+        N_StudentGroup((<b>StudentGroup</b><br/>id, name))
+        N_Student((<b>Student</b><br/>id, student_card_number))
+        N_Lecture((<b>Lecture</b><br/>id, title, lecture_type))
+        N_Schedule((<b>Schedule</b><br/>id, scheduled_date, classroom))
         
-        N_Student["(:Student {id: 'std-001', student_card_number: '2024-0001'})"]
-        
-        N_Lecture["(:Lecture {id: 'lec-001', type: 'Лекция', title: 'Введение в базы данных'})"]
-        
-        N_Schedule["(:Schedule {id: 'sch-001', date: '2026-04-01', classroom: 'A-201', time: '10:00'})"]
-        
-        N_StudentGroup ==>|"(:StudentGroup)-[:HAS_STUDENT]->(:Student)"| N_Student
-        N_StudentGroup ==>|"(:StudentGroup)-[:HAS_SCHEDULE]->(:Schedule)"| N_Schedule
-        N_Schedule ==>|"(:Schedule)-[:PART_OF]->(:Lecture)"| N_Lecture
+        N_StudentGroup -->|HAS_STUDENT| N_Student
+        N_StudentGroup -->|HAS_SCHEDULE| N_Schedule
+        N_Schedule -->|PART_OF| N_Lecture
     end
 
-    subgraph MONGODB["MONGODB - Иерархия вуза"]
+    subgraph MONGODB["MONGODB - Иерархия вуза (денормализованный документ)"]
         style MONGODB fill:#F9E79F,stroke:#3A6EA5,stroke-width:2px
         direction TB
         
-        M_University["{<br/>_id: UUID,<br/>name: STRING,<br/>short_name: STRING,<br/>address: STRING,<br/>website: STRING,<br/>founded_year: INT,<br/>institutes: [<br/>{<br/>_id: UUID,<br/>university_id: UUID,<br/>name: STRING,<br/>short_name: STRING,<br/>dean: STRING,<br/>departments: [<br/>{<br/>_id: UUID,<br/>institute_id: UUID,<br/>name: STRING,<br/>short_name: STRING,<br/>head: STRING,<br/>room: STRING,<br/>specialties: ARRAY<br/>}<br/>]<br/>}<br/>]<br/>}"]
+        M_University["{
+            _id: UUID,
+            name: STRING,
+            short_name: STRING,
+            address: STRING,
+            website: STRING,
+            founded_year: INT,
+            institutes: [{
+                _id: UUID,
+                name: STRING,
+                departments: [{
+                    _id: UUID,
+                    name: STRING,
+                    head: STRING,
+                    room: STRING,
+                    specialties: [{
+                        id: UUID,
+                        name: STRING,
+                        code: STRING,
+                        degree_level: STRING
+                    }]
+                }]
+            }]
+        }"]
     end
 
-    subgraph REDIS["REDIS - Кэш по студентам"]
+    subgraph REDIS["REDIS - Кэш студентов (JSON)"]
         style REDIS fill:#FAD7A0,stroke:#3A6EA5,stroke-width:2px
         direction TB
         
-        R_Student["<b>Тип:</b> Hash<br/><b>Ключ:</b> student:student_card_number<br/><br/>{<br/>id: UUID,<br/>first_name: STRING,<br/>last_name: STRING,<br/>patronymic: STRING,<br/>email: STRING,<br/>phone: STRING,<br/>student_card_number: STRING,<br/>group_id: UUID,<br/>enrollment_date: STRING,<br/>status: STRING<br/>}<br/>"]
+        R_Student["<b>Тип:</b> String (JSON)<br/><b>Ключ:</b> student:student_card_number<br/><br/>{<br/>id: UUID,<br/>first_name: STRING,<br/>last_name: STRING,<br/>patronymic: STRING,<br/>email: STRING,<br/>phone: STRING,<br/>student_card_number: STRING,<br/>group_id: UUID,<br/>enrollment_date: DATE,<br/>status: STRING<br/>}<br/>"]
     end
 
-    subgraph ELASTIC["ELASTICSEARCH - Материал"]
+    
+
+    subgraph ELASTIC["ELASTICSEARCH - Материалы лекций"]
         style ELASTIC fill:#C39BD3,stroke:#3A6EA5,stroke-width:2px
         direction TB
         
-        E_Materials["{<br/>id: UUID,<br/>lecture_id: UUID,<br/>title: STRING,<br/>content_text: TEXT,<br/>content_type: STRING,<br/>file_url: STRING,<br/>metadata: JSON,<br/>created_at: TIMESTAMP<br/>}<br/>"]
+        E_Materials["{
+            id: UUID,
+            lecture_id: UUID,
+            title: STRING,
+            content_text: TEXT,
+            content_type: STRING,
+            file_url: STRING,
+            metadata: JSON,
+            created_at: TIMESTAMP
+        }"]
     end
 
     subgraph POSTGRES["POSTGRESQL - Главная БД"]

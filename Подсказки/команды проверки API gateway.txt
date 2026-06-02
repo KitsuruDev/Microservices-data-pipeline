@@ -1,5 +1,6 @@
 --------- 1. Пересобрать и запустить всё с нуля ---------
 docker-compose down -v; Remove-Item -Recurse -Force -ErrorAction SilentlyContinue @('.\mongodb', '.\elasticsearch', '.\redis', '.\neo4j')
+
 docker-compose up -d
 
 
@@ -20,18 +21,30 @@ ConvertFrom-Json - считывание JSON-ответа в объект для
 
 --------- 1 лаба - Запросить отчёт ---------
 $term = [uri]::EscapeDataString("способ")
+
 $url = "http://localhost:8000/api/lab1/report?term=$term&start_date=2024-09-01&end_date=2026-12-24"
+
 curl.exe -X POST $url -H "Authorization: Bearer $token"
 
+
+Также можно воспользовать скриптом, который вытянет токен, отправит запрос и сформирует читабельный вывод:
+./scripts/lab1_search.ps1
 
 
 
 
 --------- 2 лаба - Запросить отчёт ---------
 $semester = 3
+
 $year = 2023
+
 $url = "http://localhost:8000/api/lab2/report?semester=$semester&year=$year"
+
 curl.exe -X POST $url -H "Authorization: Bearer $token"
+
+
+Также можно воспользовать скриптом, который вытянет токен, отправит запрос и сформирует читабельный вывод:
+./scripts/lab2_search.ps1
 
 
 
@@ -39,5 +52,11 @@ curl.exe -X POST $url -H "Authorization: Bearer $token"
 
 --------- 3 лаба - Запросить отчёт ---------
 $group = [uri]::EscapeDataString("БСБО-01-22")
+
 $url = "http://localhost:8000/api/lab3/report?group_name=$group"
+
 curl.exe -X POST $url -H "Authorization: Bearer $token"
+
+
+Также можно воспользовать скриптом, который вытянет токен, отправит запрос и сформирует читабельный вывод:
+./scripts/lab3_search.ps1

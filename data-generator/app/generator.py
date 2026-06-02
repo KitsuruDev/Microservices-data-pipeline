@@ -22,41 +22,66 @@ POSTGRES_CONFIG = {
 
 # ------------------ Генерация данных ------------------
 def generate_universities():
-    return [{
-        'id': uuid.uuid4(),
-        'name': 'МИРЭА - Российский технологический университет',
-        'short_name': 'РТУ МИРЭА',
-        'address': 'просп. Вернадского, д. 78, Москва',
-        'website': 'https://mirea.ru',
-        'founded_year': 1947
-    }]
-
-def generate_institutes(university_id):
-    institutes = [
-        {'name': 'Институт информационных технологий', 'short_name': 'ИТУ', 'dean': fake.name()},
-        {'name': 'Институт кибербезопасности и цифровых технологий', 'short_name': 'ИКБ', 'dean': fake.name()},
-        {'name': 'Институт радиоэлектроники и информатики', 'short_name': 'ИРИ', 'dean': fake.name()},
+    return [
+        {
+            'id': uuid.uuid4(),
+            'name': 'МИРЭА - Российский технологический университет',
+            'short_name': 'РТУ МИРЭА',
+            'address': 'просп. Вернадского, д. 78, Москва',
+            'website': 'https://mirea.ru',
+            'founded_year': 1947
+        },
+        {
+            'id': uuid.uuid4(),
+            'name': 'Московский государственный университет имени М.В. Ломоносова',
+            'short_name': 'МГУ',
+            'address': 'Ленинские горы, д. 1, Москва',
+            'website': 'https://msu.ru',
+            'founded_year': 1755
+        },
     ]
-    return [{
-        'id': uuid.uuid4(),
-        'university_id': university_id,
-        'name': inst['name'],
-        'short_name': inst['short_name'],
-        'dean': inst['dean']
-    } for inst in institutes]
 
-def generate_departments(institute_ids):
+def generate_institutes(universities):
+    all_institutes = []
+    # Институты для МИРЭА
+    mirea_institutes = [
+        ('ИТУ', 'Институт информационных технологий'),
+        ('ИКБ', 'Институт кибербезопасности и цифровых технологий'),
+        ('ИРИ', 'Институт радиоэлектроники и информатики'),
+    ]
+    # Институты для МГУ
+    msu_institutes = [
+        ('ВМК', 'Факультет вычислительной математики и кибернетики'),
+        ('Физфак', 'Физический факультет'),
+        ('Мехмат', 'Механико-математический факультет'),
+    ]
+    for univ in universities:
+        if 'МИРЭА' in univ['name']:
+            institutes_data = mirea_institutes
+        else:
+            institutes_data = msu_institutes
+        for short, name in institutes_data:
+            all_institutes.append({
+                'id': uuid.uuid4(),
+                'university_id': univ['id'],
+                'name': name,
+                'short_name': short,
+                'dean': fake.name()
+            })
+    return all_institutes
+
+def generate_departments(institutes):
     departments = []
     dept_names = [
         'Программной инженерии', 'Информационной безопасности', 'Вычислительной техники',
         'Автоматизации и управления', 'Системного анализа', 'Прикладной математики'
     ]
-    for inst_id in institute_ids:
+    for inst in institutes:
         for i in range(2):
             dept_name = random.choice(dept_names)
             departments.append({
                 'id': uuid.uuid4(),
-                'institute_id': inst_id,
+                'institute_id': inst['id'],
                 'name': f'Кафедра {dept_name}',
                 'short_name': f'КФ-{random.randint(1, 20)}',
                 'head': fake.name(),
@@ -458,8 +483,9 @@ def create_tables():
     
     # создание публикации
     cur.execute("DROP PUBLICATION IF EXISTS pub;")
-    cur.execute("CREATE PUBLICATION pub FOR ALL TABLES;")
+    cur.execute("CREATE PUBLICATION pub FOR ALL TABLES WITH (publish_via_partition_root = true);")
 
+    conn.commit()
     cur.close()
     conn.close()
 
@@ -559,49 +585,46 @@ def fill_tables(data):
 
 
 def run_generation():
-
     clear_database()
     create_tables()
-
-    # Генерация базовых сущностей
+    
     data = {}
-
+    
     data['universities'] = generate_universities()
-    print("Сгенерированы данные по университетам")
-
-    data['institutes'] = generate_institutes(data['universities'][0]['id'])
-    print("Сгенерированы данные по институтам")
-
-    institute_ids = [i['id'] for i in data['institutes']]
-    data['departments'] = generate_departments(institute_ids)
-    print("Сгенерированы данные по кафедрам")
-
+    print("Сгенерированы университеты")
+    
+    data['institutes'] = generate_institutes(data['universities'])
+    print("Сгенерированы институты")
+    
+    # Исправлено: передаём список институтов
+    data['departments'] = generate_departments(data['institutes'])
+    print("Сгенерированы кафедры")
+    
     department_ids = [d['id'] for d in data['departments']]
     data['specialties'] = generate_specialties()
-    print("Сгенерированы данные по специальностям")
-
+    print("Сгенерированы специальности")
+    
     specialty_ids = [s['id'] for s in data['specialties']]
     data['department_specialties'] = generate_department_specialties(department_ids, specialty_ids)
     print("Сгенерированы связки кафедр со специальностями")
-
+    
     data['lecture_courses'] = generate_lecture_courses(specialty_ids)
-    print("Сгенерированы список лекций по семестрам")
-
+    print("Сгенерированы курсы лекций")
+    
     course_ids = [c['id'] for c in data['lecture_courses']]
     data['lectures'] = generate_lectures(course_ids)
-    print("Сгенерированы данные по лекциям")
+    print("Сгенерированы лекции")
     
     lecture_ids = [l['id'] for l in data['lectures']]
     data['lecture_materials'] = generate_lecture_materials(lecture_ids)
-    print("Сгенерированы данные материалов лекций")
-
+    print("Сгенерированы материалы лекций")
+    
     data['student_groups'] = generate_student_groups(specialty_ids)
-
     group_ids = [g['id'] for g in data['student_groups']]
     data['students'] = generate_students(group_ids)
-    print("Сгенерированы данные по студентам")
-
-    # Настройка семестров: периоды и соответствующие номера семестров
+    print("Сгенерированы студенты")
+    
+    # Генерация расписания по семестрам (без изменений)
     semesters_config = [
         ("Осень 2024", date(2024, 9, 1), date(2024, 12, 24), [1, 3, 5]),
         ("Весна 2025", date(2025, 2, 9), date(2025, 6, 5),  [2, 4, 6]),
@@ -615,7 +638,7 @@ def run_generation():
     lecture_by_course = {}
     for lec in data['lectures']:
         lecture_by_course.setdefault(str(lec['course_id']), []).append(lec['id'])
-
+    
     for semester_name, start_d, end_d, active_semesters in semesters_config:
         print(f"Генерация расписания для {semester_name} ({start_d} - {end_d})...")
 
@@ -632,10 +655,10 @@ def run_generation():
         att = generate_attendance(sched, data['students'])
         all_schedules.extend(sched)
         all_attendance.extend(att)
-
+    
     data['schedules'] = all_schedules
     data['attendance'] = all_attendance
-
+    
     fill_tables(data)
 
     print("Данные сгенерированы и загружены в PostgreSQL")

@@ -13,6 +13,7 @@
     "plugin.name": "wal2json",
     "slot.name": "debezium",
     "publication.name": "pub",
+    "publication.autocreate.mode": "disabled",
     "table.include.list": "public.*",
     "snapshot.mode": "initial"
   }
